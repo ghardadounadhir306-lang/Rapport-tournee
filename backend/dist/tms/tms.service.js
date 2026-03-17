@@ -6,20 +6,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AppModule = void 0;
+exports.TmsService = void 0;
 const common_1 = require("@nestjs/common");
-const app_controller_1 = require("./app.controller");
-const app_service_1 = require("./app.service");
-const tms_module_1 = require("./tms/tms.module");
-const health_controller_1 = require("./health/health.controller");
-let AppModule = class AppModule {
+let TmsService = class TmsService {
+    data = {
+        entriesCount: 0,
+        list: [],
+        active: null,
+    };
+    getData() {
+        return this.data;
+    }
 };
-exports.AppModule = AppModule;
-exports.AppModule = AppModule = __decorate([
-    (0, common_1.Module)({
-        imports: [tms_module_1.TmsModule],
-        controllers: [app_controller_1.AppController, health_controller_1.HealthController],
-        providers: [app_service_1.AppService],
-    })
-], AppModule);
-//# sourceMappingURL=app.module.js.map
+exports.TmsService = TmsService;
+exports.TmsService = TmsService = __decorate([
+    (0, common_1.Injectable)()
+], TmsService);
+//# sourceMappingURL=tms.service.js.map
