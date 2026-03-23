@@ -35,6 +35,8 @@ export declare class TmsService {
     private formatDateOnly;
     private pickTmsNumber;
     private mapRowToListItem;
+    private buildListFromRows;
+    private normalizeUiDate;
     private readOtsnumbdxFromRawJson;
     private fetchRowsWithoutOtsnumbdx;
 }

@@ -18,7 +18,7 @@ export class TmsService {
         this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take: 50 }),
       ]);
 
-      const list = rows.map((row) => this.mapRowToListItem(row));
+      const list = this.buildListFromRows(rows);
 
       return {
         entriesCount,
@@ -28,7 +28,7 @@ export class TmsService {
     } catch (e: any) {
       if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('otsnumbdx')) {
         const rows = await this.fetchRowsWithoutOtsnumbdx();
-        const list = rows.map((row) => this.mapRowToListItem(row));
+        const list = this.buildListFromRows(rows);
         return {
           entriesCount: await this.tmsImportRowRepo.count(),
           list,
@@ -261,27 +261,46 @@ export class TmsService {
   private pickTmsNumber(row: Partial<TmsImportRow>) {
     const otdcode = this.asString(row.otdcode);
     const otsnum = this.asString(row.otsnum);
-    const otsnumbdx = this.asString(row.otsnumbdx);
+    const toucode = this.asString(row.toucode);
     if (otdcode && /^\d+$/.test(otdcode)) return otdcode;
-    return otsnum ?? otsnumbdx ?? otdcode ?? null;
+    return otsnum ?? toucode ?? null;
   }
 
   private mapRowToListItem(row: Partial<TmsImportRow>) {
     const tmsNumber = this.pickTmsNumber(row);
     const normalizedId = `tms-${tmsNumber ?? row.id}`;
-    const date = row.cdate ?? (row.voydtd ? this.formatDateOnly(row.voydtd) : null);
+    const date = this.normalizeUiDate(row.cdate) ?? (row.voydtd ? this.formatDateOnly(row.voydtd) : null);
 
     return {
       id: normalizedId,
-      wms: row.otsnumbdx ?? row.otdcode ?? null,
+      wms: this.asString(row.otsnumbdx) ?? null,
       date,
-      site: row.sitcode ?? row.sitecamion ?? row.sitechauff ?? null,
-      truck: row.voycle ?? null,
-      driver: row.salnom ?? '',
-      dep: row.toutrafcode ?? null,
-      prestation: row.plalib ?? row.artcode ?? row.chargement ?? null,
+      site: this.asString(row.sitcode) ?? this.asString(row.sitecamion) ?? this.asString(row.sitechauff) ?? null,
+      truck: this.asString(row.voycle) ?? null,
+      driver: this.asString(row.salnom) ?? '',
+      dep: this.asString(row.toutrafcode) ?? null,
+      prestation: this.asString(row.plalib) ?? this.asString(row.artcode) ?? this.asString(row.chargement) ?? null,
       active: false,
     };
+  }
+
+  private buildListFromRows(rows: Array<Partial<TmsImportRow>>) {
+    const map = new Map<string, ReturnType<TmsService['mapRowToListItem']>>();
+    for (const row of rows) {
+      const item = this.mapRowToListItem(row);
+      if (!map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  private normalizeUiDate(value: unknown) {
+    const s = this.asString(value);
+    if (!s) return null;
+    const onlyDate = s.match(/^\d{4}-\d{2}-\d{2}/);
+    if (onlyDate) return onlyDate[0];
+    return s;
   }
 
   private readOtsnumbdxFromRawJson(rawJson?: string | null) {

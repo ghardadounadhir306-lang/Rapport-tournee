@@ -160,12 +160,41 @@
 
 .sidebar-search-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(8, minmax(90px, 1fr));
   gap: 2px;
   margin-bottom: 16px;
   background: #f1f5f9;
   padding: 2px;
   border-radius: 4px;
+  min-width: 760px;
+}
+
+.sidebar-db-header {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(90px, 1fr));
+  gap: 2px;
+  margin-bottom: 6px;
+  background: #7c6a57;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  border-radius: 4px;
+  min-width: 760px;
+}
+
+.sidebar-db-header > div {
+  padding: 2px 6px;
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-db-header > div:last-child {
+  border-right: none;
 }
 
 .filter-bar {
@@ -233,6 +262,7 @@
 
 .sidebar-tms-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
   font-size: 11px;
 }
@@ -246,6 +276,31 @@
   border: 1px solid rgba(0,0,0,0.05);
   position: sticky;
   top: 0;
+}
+
+.sidebar-tms-table th,
+.sidebar-tms-table td {
+  border-right: 1px solid #e2e8f0;
+}
+
+.sidebar-tms-table th:last-child,
+.sidebar-tms-table td:last-child {
+  border-right: none;
+}
+
+.sidebar-tms-table thead .db-header-row th {
+  background-color: #7c6a57;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  top: 0;
+  position: sticky;
+  z-index: 2;
+}
+
+.sidebar-tms-table thead tr:nth-child(2) th {
+  top: 24px;
+  z-index: 1;
 }
 
 .th-label {

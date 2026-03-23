@@ -48,6 +48,13 @@ function App() {
 
   const normalizeText = (value) => (value == null ? '' : String(value)).trim().toLowerCase()
 
+  const parseQuery = (value) => {
+    const raw = String(value ?? '').trim()
+    if (!raw) return { mode: 'any', value: '' }
+    if (raw.startsWith('=')) return { mode: 'exact', value: raw.slice(1).trim() }
+    return { mode: 'contains', value: raw }
+  }
+
   const normalizeDateQuery = (value) => {
     const s = normalizeText(value)
     if (!s) return ''
@@ -59,32 +66,39 @@ function App() {
 
   const filteredList = useMemo(() => {
     const q = {
-      wms: normalizeText(tmsFilters.wms),
-      tms: normalizeText(tmsFilters.tms),
-      date: normalizeDateQuery(tmsFilters.date),
-      site: normalizeText(tmsFilters.site),
-      truck: normalizeText(tmsFilters.truck),
-      driver: normalizeText(tmsFilters.driver),
-      dep: normalizeText(tmsFilters.dep),
-      prestation: normalizeText(tmsFilters.prestation),
+      wms: parseQuery(tmsFilters.wms),
+      tms: parseQuery(tmsFilters.tms),
+      date: parseQuery(normalizeDateQuery(tmsFilters.date)),
+      site: parseQuery(tmsFilters.site),
+      truck: parseQuery(tmsFilters.truck),
+      driver: parseQuery(tmsFilters.driver),
+      dep: parseQuery(tmsFilters.dep),
+      prestation: parseQuery(tmsFilters.prestation),
     }
 
-    const includes = (fieldValue, queryValue) => {
-      if (!queryValue) return true
-      return normalizeText(fieldValue).includes(queryValue)
+    const matches = (fieldValue, query) => {
+      if (!query.value) return true
+      const left = normalizeText(fieldValue)
+      const right = normalizeText(query.value)
+      if (query.mode === 'exact') return left === right
+      return left.includes(right)
     }
 
     return list.filter((item) => {
       const tmsNumber = normalizeText(item?.id).replace(/^tms-/, '')
       return (
-        includes(item?.wms, q.wms) &&
-        (!q.tms || tmsNumber.includes(q.tms) || normalizeText(item?.id).includes(q.tms)) &&
-        includes(item?.date, q.date) &&
-        includes(item?.site, q.site) &&
-        includes(item?.truck, q.truck) &&
-        includes(item?.driver, q.driver) &&
-        includes(item?.dep, q.dep) &&
-        includes(item?.prestation, q.prestation)
+        matches(item?.wms, q.wms) &&
+        (q.tms.value
+          ? (q.tms.mode === 'exact'
+              ? tmsNumber === normalizeText(q.tms.value) || normalizeText(item?.id) === normalizeText(q.tms.value)
+              : tmsNumber.includes(normalizeText(q.tms.value)) || normalizeText(item?.id).includes(normalizeText(q.tms.value)))
+          : true) &&
+        matches(item?.date, q.date) &&
+        matches(item?.site, q.site) &&
+        matches(item?.truck, q.truck) &&
+        matches(item?.driver, q.driver) &&
+        matches(item?.dep, q.dep) &&
+        matches(item?.prestation, q.prestation)
       )
     })
   }, [list, tmsFilters])
@@ -107,7 +121,7 @@ function App() {
   const handleMouseMove = useCallback((e) => {
     if (isResizing.current) {
       const newWidth = e.clientX
-      if (newWidth >= 100 && newWidth <= 600) {
+      if (newWidth >= 100) {
         setSidebarWidth(newWidth)
       }
     }
@@ -537,6 +551,17 @@ function App() {
             >
               Effacer
             </button>
+          </div>
+
+          <div className="sidebar-db-header">
+            <div>OTSNUMBDX</div>
+            <div>OTDCODE / OTSNUM</div>
+            <div>CDATE</div>
+            <div>SITCODE</div>
+            <div>VOYCLE</div>
+            <div>SALNOM</div>
+            <div>TOUTRAFCODE</div>
+            <div>PLALIB / ARTCODE</div>
           </div>
 
           <table className="sidebar-tms-table">
