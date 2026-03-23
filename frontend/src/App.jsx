@@ -91,6 +91,19 @@ function App() {
 
   const selectedItem = selectedTmsItem ?? (selectedTmsId ? list.find((x) => x?.id === selectedTmsId) : null)
 
+  const activeFilterChips = useMemo(() => {
+    const chips = []
+    if (tmsFilters.wms) chips.push({ label: 'WMS', value: tmsFilters.wms })
+    if (tmsFilters.tms) chips.push({ label: 'TMS', value: tmsFilters.tms })
+    if (tmsFilters.date) chips.push({ label: 'Date', value: tmsFilters.date })
+    if (tmsFilters.site) chips.push({ label: 'Site', value: tmsFilters.site })
+    if (tmsFilters.truck) chips.push({ label: 'Camion', value: tmsFilters.truck })
+    if (tmsFilters.driver) chips.push({ label: 'Chauffeur', value: tmsFilters.driver })
+    if (tmsFilters.dep) chips.push({ label: 'Dep', value: tmsFilters.dep })
+    if (tmsFilters.prestation) chips.push({ label: 'Prestation', value: tmsFilters.prestation })
+    return chips
+  }, [tmsFilters])
+
   const handleMouseMove = useCallback((e) => {
     if (isResizing.current) {
       const newWidth = e.clientX
@@ -504,17 +517,63 @@ function App() {
               onChange={(e) => setTmsFilters({ ...tmsFilters, prestation: e.target.value })}
             />
           </div>
+
+          <div className="filter-bar">
+            <div className="filter-chips">
+              {activeFilterChips.length === 0 ? (
+                <span className="filter-empty">Aucun filtre actif</span>
+              ) : (
+                activeFilterChips.map((chip) => (
+                  <span key={`${chip.label}-${chip.value}`} className="filter-chip">
+                    {chip.label}: {chip.value}
+                  </span>
+                ))
+              )}
+            </div>
+            <button
+              className="filter-clear"
+              onClick={() => setTmsFilters({ wms: '', tms: '', date: '', site: '', truck: '', driver: '', dep: '', prestation: '' })}
+              disabled={activeFilterChips.length === 0}
+            >
+              Effacer
+            </button>
+          </div>
+
           <table className="sidebar-tms-table">
             <thead>
               <tr>
-                <th>N° WMS</th>
-                <th>N° TMS</th>
-                <th>Date</th>
-                <th>Site</th>
-                <th>Camion</th>
-                <th>Chauffeur</th>
-                <th>Dep</th>
-                <th>Prestation</th>
+                <th>
+                  <div className="th-label">OTSNUMBDX</div>
+                  <div className="th-meta">(WMS)</div>
+                </th>
+                <th>
+                  <div className="th-label">OTDCODE / OTSNUM</div>
+                  <div className="th-meta">(TMS)</div>
+                </th>
+                <th>
+                  <div className="th-label">CDATE</div>
+                  <div className="th-meta">(Date)</div>
+                </th>
+                <th>
+                  <div className="th-label">SITCODE</div>
+                  <div className="th-meta">(Site)</div>
+                </th>
+                <th>
+                  <div className="th-label">VOYCLE</div>
+                  <div className="th-meta">(Camion)</div>
+                </th>
+                <th>
+                  <div className="th-label">SALNOM</div>
+                  <div className="th-meta">(Chauffeur)</div>
+                </th>
+                <th>
+                  <div className="th-label">TOUTRAFCODE</div>
+                  <div className="th-meta">(Dep)</div>
+                </th>
+                <th>
+                  <div className="th-label">PLALIB / ARTCODE</div>
+                  <div className="th-meta">(Prestation)</div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -548,6 +607,49 @@ function App() {
 
         {activeTab === 'AZIZA' && (
           <section className="content">
+            <div className="card tms-detail-card">
+              <div className="detail-header">
+                <div>
+                  <h3 className="detail-title">Données TMS sélectionnées</h3>
+                  <p className="detail-subtitle">Champs alignés avec les colonnes Excel</p>
+                </div>
+                <span className="detail-badge">Admin</span>
+              </div>
+              <div className="detail-grid">
+                <div>
+                  <div className="detail-label">N° TMS <span>(OTDCODE / OTSNUM)</span></div>
+                  <div className="detail-value">{selectedItem ? String(selectedItem.id).replace('tms-', '') : '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">N° WMS <span>(OTSNUMBDX)</span></div>
+                  <div className="detail-value">{selectedItem?.wms || '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Date <span>(CDATE)</span></div>
+                  <div className="detail-value">{selectedItem?.date || '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Site <span>(SITCODE)</span></div>
+                  <div className="detail-value">{selectedItem?.site || '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Camion <span>(VOYCLE)</span></div>
+                  <div className="detail-value">{selectedItem?.truck || '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Chauffeur <span>(SALNOM)</span></div>
+                  <div className="detail-value">{selectedItem?.driver || '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Dep <span>(TOUTRAFCODE)</span></div>
+                  <div className="detail-value">{selectedItem?.dep || '--'}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Prestation <span>(PLALIB / ARTCODE)</span></div>
+                  <div className="detail-value">{selectedItem?.prestation || '--'}</div>
+                </div>
+              </div>
+            </div>
             {/* SECTION 1: Header Info */}
             <div className="card divers-card">
               <div className="card-top-accent"></div>

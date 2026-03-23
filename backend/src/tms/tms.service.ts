@@ -18,23 +18,7 @@ export class TmsService {
         this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take: 50 }),
       ]);
 
-      const list = rows.map((row) => {
-        const tmsNumber = this.pickTmsNumber(row);
-        const normalizedId = `tms-${tmsNumber ?? row.id}`;
-        const date = row.cdate ?? (row.voydtd ? this.formatDateOnly(row.voydtd) : null);
-
-        return {
-          id: normalizedId,
-          wms: row.otsnumbdx ?? row.otdcode ?? null,
-          date,
-          site: row.sitcode ?? row.sitecamion ?? row.sitechauff ?? null,
-          truck: row.voycle ?? null,
-          driver: row.salnom ?? '',
-          dep: row.toutrafcode ?? null,
-          prestation: row.plalib ?? row.artcode ?? row.chargement ?? null,
-          active: false,
-        };
-      });
+      const list = rows.map((row) => this.mapRowToListItem(row));
 
       return {
         entriesCount,
@@ -42,6 +26,15 @@ export class TmsService {
         active: null,
       };
     } catch (e: any) {
+      if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('otsnumbdx')) {
+        const rows = await this.fetchRowsWithoutOtsnumbdx();
+        const list = rows.map((row) => this.mapRowToListItem(row));
+        return {
+          entriesCount: await this.tmsImportRowRepo.count(),
+          list,
+          active: null,
+        };
+      }
       if (e?.code === 'ER_NO_SUCH_TABLE') {
         throw new BadRequestException(
           'Missing table tms_import_rows. Run sql/schema.mysql.sql to create the DB schema.',
@@ -265,11 +258,83 @@ export class TmsService {
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  private pickTmsNumber(row: TmsImportRow) {
+  private pickTmsNumber(row: Partial<TmsImportRow>) {
     const otdcode = this.asString(row.otdcode);
     const otsnum = this.asString(row.otsnum);
     const otsnumbdx = this.asString(row.otsnumbdx);
     if (otdcode && /^\d+$/.test(otdcode)) return otdcode;
     return otsnum ?? otsnumbdx ?? otdcode ?? null;
+  }
+
+  private mapRowToListItem(row: Partial<TmsImportRow>) {
+    const tmsNumber = this.pickTmsNumber(row);
+    const normalizedId = `tms-${tmsNumber ?? row.id}`;
+    const date = row.cdate ?? (row.voydtd ? this.formatDateOnly(row.voydtd) : null);
+
+    return {
+      id: normalizedId,
+      wms: row.otsnumbdx ?? row.otdcode ?? null,
+      date,
+      site: row.sitcode ?? row.sitecamion ?? row.sitechauff ?? null,
+      truck: row.voycle ?? null,
+      driver: row.salnom ?? '',
+      dep: row.toutrafcode ?? null,
+      prestation: row.plalib ?? row.artcode ?? row.chargement ?? null,
+      active: false,
+    };
+  }
+
+  private readOtsnumbdxFromRawJson(rawJson?: string | null) {
+    if (!rawJson) return null;
+    try {
+      const obj = JSON.parse(rawJson);
+      const value = obj?.OTSNUMBDX ?? obj?.otsnumbdx;
+      return this.asString(value, 128);
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchRowsWithoutOtsnumbdx() {
+    const rawRows = await this.tmsImportRowRepo
+      .createQueryBuilder('row')
+      .select([
+        'row.id',
+        'row.otdcode',
+        'row.otsnum',
+        'row.cdate',
+        'row.voydtd',
+        'row.sitcode',
+        'row.sitecamion',
+        'row.sitechauff',
+        'row.voycle',
+        'row.salnom',
+        'row.toutrafcode',
+        'row.plalib',
+        'row.artcode',
+        'row.chargement',
+        'row.raw_json',
+      ])
+      .orderBy('row.id', 'DESC')
+      .limit(50)
+      .getRawMany();
+
+    return rawRows.map((raw) => ({
+      id: raw.row_id,
+      otdcode: raw.row_otdcode,
+      otsnum: raw.row_otsnum,
+      cdate: raw.row_cdate,
+      voydtd: raw.row_voydtd,
+      sitcode: raw.row_sitcode,
+      sitecamion: raw.row_sitecamion,
+      sitechauff: raw.row_sitechauff,
+      voycle: raw.row_voycle,
+      salnom: raw.row_salnom,
+      toutrafcode: raw.row_toutrafcode,
+      plalib: raw.row_plalib,
+      artcode: raw.row_artcode,
+      chargement: raw.row_chargement,
+      otsnumbdx: this.readOtsnumbdxFromRawJson(raw.row_raw_json),
+    }));
   }
 }

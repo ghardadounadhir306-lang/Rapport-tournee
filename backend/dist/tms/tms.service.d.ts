@@ -34,4 +34,7 @@ export declare class TmsService {
     private isRowEmpty;
     private formatDateOnly;
     private pickTmsNumber;
+    private mapRowToListItem;
+    private readOtsnumbdxFromRawJson;
+    private fetchRowsWithoutOtsnumbdx;
 }
