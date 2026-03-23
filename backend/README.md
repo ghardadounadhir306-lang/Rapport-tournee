@@ -31,6 +31,42 @@
 $ npm install
 ```
 
+## Database (MySQL)
+
+1) Copy env file and adjust credentials:
+
+```bash
+$ cp .env.example .env
+```
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+2) Create the database schema (creates DB `r_tournee` by default):
+
+```bash
+$ mysql -u root -p < sql/schema.mysql.sql
+```
+
+If you already have tables/data and only want to add the Excel import table, run:
+
+```bash
+$ mysql -u root -p < sql/patches/001_create_tms_import_rows.sql
+```
+
+PowerShell (same command, just run it from the `backend` folder):
+
+```powershell
+mysql -u root -p < sql/schema.mysql.sql
+```
+
+The backend reads these variables:
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- Optional: `DB_LOGGING=true`
+
 ## Compile and run the project
 
 ```bash
@@ -42,6 +78,20 @@ $ npm run start:dev
 
 # production mode
 $ npm run start:prod
+```
+
+## Import Excel (TMS)
+
+Upload the `.xlsx` file as multipart field name `file`:
+
+```bash
+$ curl -F "file=@C:\\path\\to\\file.xlsx" http://localhost:3001/tms/import
+```
+
+Then check imported rows:
+
+```bash
+$ curl http://localhost:3001/tms
 ```
 
 ## Run tests

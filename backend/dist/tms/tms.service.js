@@ -1,25 +1,316 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TmsService = void 0;
 const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
+const XLSX = __importStar(require("xlsx"));
+const typeorm_2 = require("typeorm");
+const tms_import_row_entity_1 = require("./entities/tms-import-row.entity");
 let TmsService = class TmsService {
-    data = {
-        entriesCount: 0,
-        list: [],
-        active: null,
-    };
-    getData() {
-        return this.data;
+    tmsImportRowRepo;
+    constructor(tmsImportRowRepo) {
+        this.tmsImportRowRepo = tmsImportRowRepo;
+    }
+    async getData() {
+        try {
+            const [entriesCount, rows] = await Promise.all([
+                this.tmsImportRowRepo.count(),
+                this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take: 50 }),
+            ]);
+            const list = rows.map((row) => {
+                const tmsNumber = this.pickTmsNumber(row);
+                const normalizedId = `tms-${tmsNumber ?? row.id}`;
+                const date = row.cdate ?? (row.voydtd ? this.formatDateOnly(row.voydtd) : null);
+                return {
+                    id: normalizedId,
+                    wms: row.otsnumbdx ?? row.otdcode ?? null,
+                    date,
+                    site: row.sitcode ?? row.sitecamion ?? row.sitechauff ?? null,
+                    truck: row.voycle ?? null,
+                    driver: row.salnom ?? '',
+                    dep: row.toutrafcode ?? null,
+                    prestation: row.plalib ?? row.artcode ?? row.chargement ?? null,
+                    active: false,
+                };
+            });
+            return {
+                entriesCount,
+                list,
+                active: null,
+            };
+        }
+        catch (e) {
+            if (e?.code === 'ER_NO_SUCH_TABLE') {
+                throw new common_1.BadRequestException('Missing table tms_import_rows. Run sql/schema.mysql.sql to create the DB schema.');
+            }
+            throw e;
+        }
+    }
+    async importExcel(buffer) {
+        if (!buffer?.length) {
+            throw new common_1.BadRequestException('Empty file');
+        }
+        let workbook;
+        try {
+            workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+        }
+        catch {
+            throw new common_1.BadRequestException('Invalid Excel file');
+        }
+        const sheetName = workbook.SheetNames?.[0];
+        if (!sheetName) {
+            throw new common_1.BadRequestException('Excel file has no sheets');
+        }
+        const sheet = workbook.Sheets[sheetName];
+        const rawRows = XLSX.utils.sheet_to_json(sheet, {
+            defval: null,
+        });
+        const rowsToInsert = rawRows
+            .map((r) => this.mapExcelRow(r))
+            .filter((r) => !this.isRowEmpty(r));
+        const chunkSize = 500;
+        try {
+            for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
+                const chunk = rowsToInsert.slice(i, i + chunkSize);
+                await this.tmsImportRowRepo.insert(chunk);
+            }
+        }
+        catch (e) {
+            if (e?.code === 'ER_NO_SUCH_TABLE') {
+                throw new common_1.BadRequestException('Missing table tms_import_rows. Run sql/schema.mysql.sql to create the DB schema.');
+            }
+            throw e;
+        }
+        return {
+            sheetName,
+            rowsDetected: rawRows.length,
+            inserted: rowsToInsert.length,
+        };
+    }
+    normalizeHeader(header) {
+        return header
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '')
+            .replace(/[^a-z0-9]/g, '');
+    }
+    normalizeRowKeys(row) {
+        const out = {};
+        for (const [key, value] of Object.entries(row)) {
+            out[this.normalizeHeader(key)] = value;
+        }
+        return out;
+    }
+    asString(value, maxLen) {
+        if (value === null || value === undefined)
+            return null;
+        const s = String(value).trim();
+        if (!s)
+            return null;
+        const lower = s.toLowerCase();
+        if (lower === 'undefined' || lower === 'null' || lower === 'none')
+            return null;
+        return maxLen ? s.slice(0, maxLen) : s;
+    }
+    asInt(value) {
+        if (value === null || value === undefined || value === '')
+            return null;
+        if (typeof value === 'number' && Number.isFinite(value))
+            return Math.trunc(value);
+        const s = String(value).trim().replace(',', '.');
+        const n = Number.parseInt(s, 10);
+        return Number.isFinite(n) ? n : null;
+    }
+    asDecimalString(value) {
+        if (value === null || value === undefined || value === '')
+            return null;
+        if (typeof value === 'string') {
+            const v = value.trim().toLowerCase();
+            if (!v || v === 'undefined' || v === 'null' || v === 'none')
+                return null;
+        }
+        if (typeof value === 'number' && Number.isFinite(value))
+            return String(value);
+        const s = String(value).trim().replace(',', '.');
+        const n = Number.parseFloat(s);
+        return Number.isFinite(n) ? String(n) : null;
+    }
+    asDateOnly(value) {
+        if (value === null || value === undefined || value === '')
+            return null;
+        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+            const yyyy = value.getFullYear();
+            const mm = String(value.getMonth() + 1).padStart(2, '0');
+            const dd = String(value.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+        const s = String(value).trim();
+        const lower = s.toLowerCase();
+        if (lower === 'undefined' || lower === 'null' || lower === 'none')
+            return null;
+        const iso = /^\d{4}-\d{2}-\d{2}$/;
+        if (iso.test(s))
+            return s;
+        const fr = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        const m = s.match(fr);
+        if (m) {
+            const dd = m[1];
+            const mm = m[2];
+            const yyyy = m[3];
+            return `${yyyy}-${mm}-${dd}`;
+        }
+        const frDt = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/;
+        const m2 = s.match(frDt);
+        if (m2) {
+            const dd = m2[1];
+            const mm = m2[2];
+            const yyyy = m2[3];
+            return `${yyyy}-${mm}-${dd}`;
+        }
+        return null;
+    }
+    asDateTime(value) {
+        if (value === null || value === undefined || value === '')
+            return null;
+        if (value instanceof Date && !Number.isNaN(value.getTime()))
+            return value;
+        const s = String(value).trim();
+        const lower = s.toLowerCase();
+        if (lower === 'undefined' || lower === 'null' || lower === 'none')
+            return null;
+        const frDt = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/;
+        const m = s.match(frDt);
+        if (m) {
+            const dd = m[1];
+            const mm = m[2];
+            const yyyy = m[3];
+            const hh = m[4];
+            const min = m[5];
+            const ss = m[6] ?? '00';
+            return new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`);
+        }
+        const d = new Date(s);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    mapExcelRow(row) {
+        const r = this.normalizeRowKeys(row);
+        const get = (name) => r[this.normalizeHeader(name)];
+        return {
+            affcode: this.asString(get('affcode'), 64),
+            artcode: this.asString(get('artcode'), 64),
+            cdate: this.asDateOnly(get('cdate')),
+            entnbpal: this.asInt(get('entnbpal')),
+            otdcode: this.asString(get('otdcode'), 64),
+            otscontainer: this.asString(get('otscontainer'), 64),
+            otsetat: this.asString(get('otsetat'), 64),
+            otskm2: this.asDecimalString(get('otskm2')),
+            otsnumbdx: this.asString(get('otsnumbdx'), 128),
+            ottmt: this.asDecimalString(get('ottmt')),
+            placha1i: this.asString(get('placha1i'), 64),
+            plakm1: this.asDecimalString(get('plakm1')),
+            plakm2: this.asDecimalString(get('plakm2')),
+            plalib: this.asString(get('plalib'), 255),
+            plamoti: this.asString(get('plamoti'), 255),
+            plargiarr: this.asString(get('plargiarr'), 255),
+            rgilibl: this.asString(get('rgilibl'), 255),
+            salnom: this.asString(get('salnom'), 255),
+            saltel: this.asString(get('saltel'), 64),
+            sitcode: this.asString(get('sitcode'), 64),
+            sitsiretedi: this.asString(get('sitsiretedi'), 32),
+            tiecode: this.asString(get('tiecode'), 64),
+            toucode: this.asString(get('toucode'), 64),
+            voycle: this.asString(get('voycle'), 128),
+            voydtd: this.asDateTime(get('voydtd')),
+            voyhrd: this.asString(get('voyhrd'), 32),
+            voypal: this.asInt(get('voypal')),
+            performance_camion: this.asDecimalString(get('performance_camion')),
+            performance_chauffeur: this.asDecimalString(get('performance_chauffeur')),
+            taux_remplissage_pal: this.asDecimalString(get('taux_remplissage_pal')),
+            taux_remplissage_ton: this.asDecimalString(get('taux_remplissage_ton')),
+            mdate: this.asDateTime(get('mdate')),
+            sitechauff: this.asString(get('sitechauff'), 64),
+            sitecamion: this.asString(get('sitecamion'), 64),
+            salmemoe: this.asString(get('salmemoe')),
+            otsnum: this.asString(get('otsnum'), 128),
+            platouordre: this.asInt(get('platouordre')),
+            salmobilite: this.asString(get('salmobilite'), 64),
+            km_tsp: this.asDecimalString(get('km_tsp')),
+            toutrafcode: this.asString(get('toutrafcode'), 64),
+            chargement: this.asString(get('chargement'), 255),
+            voydtf: this.asDateTime(get('voydtf')),
+            otdhd: this.asDateTime(get('otdhd')),
+            voymemo: this.asString(get('voymemo')),
+            raw_json: JSON.stringify(row),
+        };
+    }
+    isRowEmpty(row) {
+        const { id, created_at, raw_json, ...rest } = row;
+        return Object.values(rest).every((v) => v === null || v === undefined || v === '');
+    }
+    formatDateOnly(d) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    pickTmsNumber(row) {
+        const otdcode = this.asString(row.otdcode);
+        const otsnum = this.asString(row.otsnum);
+        const otsnumbdx = this.asString(row.otsnumbdx);
+        if (otdcode && /^\d+$/.test(otdcode))
+            return otdcode;
+        return otsnum ?? otsnumbdx ?? otdcode ?? null;
     }
 };
 exports.TmsService = TmsService;
 exports.TmsService = TmsService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_1.InjectRepository)(tms_import_row_entity_1.TmsImportRow)),
+    __metadata("design:paramtypes", [typeorm_2.Repository])
 ], TmsService);
 //# sourceMappingURL=tms.service.js.map

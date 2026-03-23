@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import './App.css'
 
 function App() {
@@ -9,6 +9,18 @@ function App() {
   const [showTourneeMenu, setShowTourneeMenu] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(280)
   const [tms, setTms] = useState(null)
+  const [tmsFilters, setTmsFilters] = useState({
+    wms: '',
+    tms: '',
+    date: '',
+    site: '',
+    truck: '',
+    driver: '',
+    dep: '',
+    prestation: '',
+  })
+  const [selectedTmsId, setSelectedTmsId] = useState(null)
+  const [selectedTmsItem, setSelectedTmsItem] = useState(null)
   const isResizing = useRef(false)
   const menuRef = useRef(null)
 
@@ -33,6 +45,51 @@ function App() {
 
   const active = tms?.active
   const list = tms?.list ?? []
+
+  const normalizeText = (value) => (value == null ? '' : String(value)).trim().toLowerCase()
+
+  const normalizeDateQuery = (value) => {
+    const s = normalizeText(value)
+    if (!s) return ''
+    // Accept yyyy-mm-dd or dd/mm/yyyy
+    const fr = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (fr) return `${fr[3]}-${fr[2]}-${fr[1]}`
+    return s
+  }
+
+  const filteredList = useMemo(() => {
+    const q = {
+      wms: normalizeText(tmsFilters.wms),
+      tms: normalizeText(tmsFilters.tms),
+      date: normalizeDateQuery(tmsFilters.date),
+      site: normalizeText(tmsFilters.site),
+      truck: normalizeText(tmsFilters.truck),
+      driver: normalizeText(tmsFilters.driver),
+      dep: normalizeText(tmsFilters.dep),
+      prestation: normalizeText(tmsFilters.prestation),
+    }
+
+    const includes = (fieldValue, queryValue) => {
+      if (!queryValue) return true
+      return normalizeText(fieldValue).includes(queryValue)
+    }
+
+    return list.filter((item) => {
+      const tmsNumber = normalizeText(item?.id).replace(/^tms-/, '')
+      return (
+        includes(item?.wms, q.wms) &&
+        (!q.tms || tmsNumber.includes(q.tms) || normalizeText(item?.id).includes(q.tms)) &&
+        includes(item?.date, q.date) &&
+        includes(item?.site, q.site) &&
+        includes(item?.truck, q.truck) &&
+        includes(item?.driver, q.driver) &&
+        includes(item?.dep, q.dep) &&
+        includes(item?.prestation, q.prestation)
+      )
+    })
+  }, [list, tmsFilters])
+
+  const selectedItem = selectedTmsItem ?? (selectedTmsId ? list.find((x) => x?.id === selectedTmsId) : null)
 
   const handleMouseMove = useCallback((e) => {
     if (isResizing.current) {
@@ -385,7 +442,7 @@ function App() {
               borderRadius: '4px',
               textTransform: 'uppercase'
             }}>
-              {list.length} TOURNÉES
+              {filteredList.length} / {list.length} TOURNÉES
             </span>
           </div>
 
@@ -394,41 +451,57 @@ function App() {
               type="text"
               placeholder="N° WMS"
               className="search-field"
+              value={tmsFilters.wms}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, wms: e.target.value })}
             />
             <input
               type="text"
               placeholder="N° TMS"
               className="search-field"
+              value={tmsFilters.tms}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, tms: e.target.value })}
             />
             <input
               type="text"
               placeholder="Date"
               className="search-field"
+              value={tmsFilters.date}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, date: e.target.value })}
             />
             <input
               type="text"
               placeholder="Site"
               className="search-field"
+              value={tmsFilters.site}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, site: e.target.value })}
             />
             <input
               type="text"
               placeholder="Camion"
               className="search-field"
+              value={tmsFilters.truck}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, truck: e.target.value })}
             />
             <input
               type="text"
               placeholder="Chauffeur"
               className="search-field"
+              value={tmsFilters.driver}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, driver: e.target.value })}
             />
             <input
               type="text"
               placeholder="Dep"
               className="search-field"
+              value={tmsFilters.dep}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, dep: e.target.value })}
             />
             <input
               type="text"
               placeholder="Prestation"
               className="search-field"
+              value={tmsFilters.prestation}
+              onChange={(e) => setTmsFilters({ ...tmsFilters, prestation: e.target.value })}
             />
           </div>
           <table className="sidebar-tms-table">
@@ -445,17 +518,22 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {list.length > 0 ? list.map((item) => (
+              {filteredList.length > 0 ? filteredList.map((item) => (
                 <tr 
                   key={item.id}
-                  className={item.active ? 'active-row' : ''}
+                  className={item?.id === selectedTmsId ? 'active-row' : ''}
+                  onClick={() => {
+                    setSelectedTmsId(item?.id ?? null)
+                    setSelectedTmsItem(item ?? null)
+                  }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <td>{item.wms || '---'}</td>
-                  <td>{item.id.replace('tms-', '')}</td>
-                  <td>{item.date}</td>
-                  <td>{item.site}</td>
-                  <td>{item.truck}</td>
-                  <td>{item.driver.split(' ')[0]}</td>
+                  <td>{String(item.id ?? '').replace('tms-', '') || '---'}</td>
+                  <td>{item.date || '---'}</td>
+                  <td>{item.site || '---'}</td>
+                  <td>{item.truck || '---'}</td>
+                  <td>{(item.driver ? String(item.driver).split(' ')[0] : '---')}</td>
                   <td>{item.dep || '120'}</td>
                   <td>{item.prestation || 'STK'}</td>
                 </tr>
@@ -489,13 +567,13 @@ function App() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td contentEditable>--/--/----</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
+                    <td contentEditable suppressContentEditableWarning>{selectedItem?.date || '--/--/----'}</td>
+                    <td contentEditable suppressContentEditableWarning>{(selectedItem?.id ? String(selectedItem.id).replace('tms-', '') : '--')}</td>
+                    <td contentEditable suppressContentEditableWarning>{selectedItem?.truck || '--'}</td>
+                    <td contentEditable suppressContentEditableWarning>{selectedItem?.driver || '--'}</td>
+                    <td contentEditable suppressContentEditableWarning>{selectedItem?.dep || '--'}</td>
+                    <td contentEditable suppressContentEditableWarning>{selectedItem?.wms || '--'}</td>
+                    <td contentEditable suppressContentEditableWarning>{selectedItem?.prestation || '--'}</td>
                     <td>
                       <select className="table-select" style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '11px', outline: 'none' }}>
                         <option>Conforme</option>
@@ -511,7 +589,7 @@ function App() {
                         <option>Autres</option>
                       </select>
                     </td>
-                    <td contentEditable>--</td>
+                    <td contentEditable suppressContentEditableWarning>--</td>
                   </tr>
                 </tbody>
               </table>

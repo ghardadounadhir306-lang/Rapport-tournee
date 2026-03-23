@@ -8,9 +8,13 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TmsController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const tms_service_1 = require("./tms.service");
 let TmsController = class TmsController {
     tmsService;
@@ -20,6 +24,12 @@ let TmsController = class TmsController {
     getTmsData() {
         return this.tmsService.getData();
     }
+    importTmsExcel(file) {
+        if (!file) {
+            throw new common_1.BadRequestException('Missing file (field name: file)');
+        }
+        return this.tmsService.importExcel(file.buffer);
+    }
 };
 exports.TmsController = TmsController;
 __decorate([
@@ -28,8 +38,16 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], TmsController.prototype, "getTmsData", null);
+__decorate([
+    (0, common_1.Post)('import'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
+    __param(0, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], TmsController.prototype, "importTmsExcel", null);
 exports.TmsController = TmsController = __decorate([
-    (0, common_1.Controller)('tms'),
+    (0, common_1.Controller)(['tms', 'api/tms']),
     __metadata("design:paramtypes", [tms_service_1.TmsService])
 ], TmsController);
 //# sourceMappingURL=tms.controller.js.map
