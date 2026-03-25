@@ -227,7 +227,7 @@ function App() {
 
   // Preset table rows based on selected tournée ID
   useEffect(() => {
-    if (activeTab === 'AZIZA') {
+    if (['AZIZA', 'DIVERS', 'GIAS', 'FLEG'].includes(activeTab)) {
       if (selectedTmsItem) {
         const displayId = selectedTmsItem.id.replace(/^tms-/, '');
         setTableRows([{ id: Date.now(), client: `${displayId} - `, dep: '', um: '', pal: '', arrivee: '', depart: '', kmArv: '', taxe: '', livree: false, kmTh: '', region: '' }]);
@@ -236,6 +236,208 @@ function App() {
       }
     }
   }, [selectedTmsItem, activeTab]);
+
+  const renderSelectionRequired = () => (
+    <section className="content">
+      <div className="card">
+        <div style={{ fontWeight: 800, color: '#7c2d12', marginBottom: '6px' }}>Sélection requise</div>
+        <div style={{ fontSize: '13px', color: '#6b7280' }}>
+          Sélectionnez une جولة / فاتورة من القائمة على اليسار.
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderTourneeLayout = () => {
+    return (
+      <section className={`content ${theme === 'dark' ? 'dark-theme-content' : 'light-theme-content'}`} style={{ padding: '20px' }}>
+        {/* Form Container */}
+        <div className={theme === 'dark' ? 'dark-form-container' : 'light-form-container'}>
+          {/* Row 1 */}
+          <div className={theme === 'dark' ? 'dark-form-row' : 'light-form-row'}>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Date</label>
+              <input type="date" value={selectedItem?.date || ''} readOnly />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>N° WMS</label>
+              <input type="text" value={selectedItem?.wms || ''} readOnly />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>N° prestation</label>
+              <input type="text" value={selectedItem?.prestation || ''} readOnly />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Camion</label>
+              <input type="text" value={selectedItem?.truck || ''} readOnly />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Chauffeur</label>
+              <input type="text" value={selectedItem?.driver || ''} readOnly />
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          <div className={theme === 'dark' ? 'dark-form-row' : 'light-form-row'}>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Tournée gén.</label>
+              <input type="text" value={selectedItem?.dep || ''} readOnly />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>KM facture</label>
+              <input type="text" defaultValue="" />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Marchandise</label>
+              <input type="text" defaultValue="" />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Conformité</label>
+              <select className={theme === 'dark' ? 'dark-select-white' : 'light-select-white'}>
+                <option>Conforme</option>
+                <option>Non Conforme</option>
+                <option>Absence BL</option>
+                <option>Absence cachet et Signature ( Décharge)</option>
+                <option>Kilométrage erronée</option>
+                <option>Nombre de palette non conforme</option>
+                <option>Retard communication dérogation</option>
+                <option>Retard envoie document</option>
+                <option>Livraison effectuée</option>
+                <option>Livraison non effectuée</option>
+                <option>Autres</option>
+              </select>
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Observation</label>
+              <input type="text" defaultValue="" />
+            </div>
+          </div>
+
+          {/* Row 3 */}
+          <div className={theme === 'dark' ? 'dark-form-row-multi' : 'light-form-row-multi'}>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>H.départ</label>
+              <div className="time-input-group">
+                <input type="time" />
+              </div>
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Km.Départ</label>
+              <input type="text" defaultValue="" />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>H.retour</label>
+              <div className="time-input-group">
+                <input type="time" />
+              </div>
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Km.Retour</label>
+              <input type="text" defaultValue="" />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Km dernier client</label>
+              <input type="text" defaultValue="" />
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
+              <label>Km/Moy</label>
+              <input type="text" defaultValue="" />
+            </div>
+          </div>
+
+          {/* Row 4 */}
+          <div className={theme === 'dark' ? 'dark-form-row align-end' : 'light-form-row align-end'}>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'} style={{ maxWidth: '250px' }}>
+              <label>Total palette</label>
+              <div className="flex-row gap-2">
+                <input type="text" defaultValue="0" style={{ textAlign: 'center' }} />
+                <input type="text" defaultValue="0" style={{ textAlign: 'center' }} />
+              </div>
+            </div>
+            <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'} style={{ maxWidth: '150px' }}>
+              <label>Tournée sec.</label>
+              <input type="text" defaultValue="0" style={{ textAlign: 'center' }} />
+            </div>
+            <div className="checkbox-group mt-6">
+              <input type="checkbox" id="apres-midi" />
+              <label htmlFor="apres-midi">Après midi</label>
+            </div>
+            <div className="checkbox-group mt-6" style={{ marginLeft: '20px' }}>
+              <input type="checkbox" id="inter-site" />
+              <label htmlFor="inter-site">Tournée inter site</label>
+            </div>
+          </div>
+        </div>
+
+        {/* Table Section */}
+        <div className={`${theme === 'dark' ? 'dark-table-container' : 'light-table-container'} mt-4`}>
+          <table className={theme === 'dark' ? 'dark-themed-table' : 'light-themed-table'}>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Dep</th>
+                <th>UM</th>
+                <th>Pal</th>
+                <th>Arrivée.Client</th>
+                <th>Départ.Client</th>
+                <th>Km.Arv.Client</th>
+                <th>Taxe</th>
+                <th>Livrée</th>
+                <th>Km TH</th>
+                <th>Region</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.length === 0 ? (
+                <tr>
+                  <td colSpan="11" className="empty-message">Aucun client</td>
+                </tr>
+              ) : (
+                tableRows.map((row, index) => (
+                  <tr key={row.id}>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.client} onChange={(e) => updateClientRow(index, 'client', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} placeholder="... " /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.dep} onChange={(e) => updateClientRow(index, 'dep', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.um} onChange={(e) => updateClientRow(index, 'um', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.pal} onChange={(e) => updateClientRow(index, 'pal', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="time" value={row.arrivee} onChange={(e) => updateClientRow(index, 'arrivee', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="time" value={row.depart} onChange={(e) => updateClientRow(index, 'depart', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.kmArv} onChange={(e) => updateClientRow(index, 'kmArv', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.taxe} onChange={(e) => updateClientRow(index, 'taxe', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px', textAlign: 'center' }}><input type="checkbox" checked={row.livree} onChange={(e) => updateClientRow(index, 'livree', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#f97316', cursor: 'pointer' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.kmTh} onChange={(e) => updateClientRow(index, 'kmTh', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" value={row.region} onChange={(e) => updateClientRow(index, 'region', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+          <button 
+            onClick={addClientRow}
+            style={{ 
+              background: 'transparent', 
+              border: `1px dashed ${theme === 'dark' ? '#4b5563' : '#cbd5e1'}`, 
+              color: theme === 'dark' ? '#9ca3af' : '#64748b', 
+              padding: '10px 16px', 
+              borderRadius: '6px', 
+              fontSize: '13px', 
+              fontWeight: '600', 
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.target.style.borderColor = '#f97316'}
+            onMouseLeave={(e) => e.target.style.borderColor = theme === 'dark' ? '#4b5563' : '#cbd5e1'}
+          >
+            + إضافة سطر عميل
+          </button>
+          <button className={theme === 'dark' ? 'dark-save-btn' : 'light-save-btn'}>Enregistrer</button>
+        </div>
+      </section>
+    );
+  };
 
   return (
     <div className={`app-root ${theme}-theme`}>
@@ -747,414 +949,9 @@ function App() {
           </table>
         </aside>
 
-        {activeTab === 'AZIZA' && (hasSelectedTournee ? (
-          <section className={`content ${theme === 'dark' ? 'dark-theme-content' : 'light-theme-content'}`} style={{ padding: '20px' }}>
-            
-
-
-            {/* Form Container */}
-            <div className={theme === 'dark' ? 'dark-form-container' : 'light-form-container'}>
-              
-              {/* Row 1 */}
-              <div className={theme === 'dark' ? 'dark-form-row' : 'light-form-row'}>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Date</label>
-                  <input type="date" value={selectedItem?.date || ''} readOnly />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>N° WMS</label>
-                  <input type="text" value={selectedItem?.wms || ''} readOnly />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>N° prestation</label>
-                  <input type="text" value={selectedItem?.prestation || ''} readOnly />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Camion</label>
-                  <input type="text" value={selectedItem?.truck || ''} readOnly />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Chauffeur</label>
-                  <input type="text" value={selectedItem?.driver || ''} readOnly />
-                </div>
-              </div>
-
-              {/* Row 2 */}
-              <div className={theme === 'dark' ? 'dark-form-row' : 'light-form-row'}>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Tournée gén.</label>
-                  <input type="text" value={selectedItem?.dep || ''} readOnly />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>KM facture</label>
-                  <input type="text" defaultValue="" />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Marchandise</label>
-                  <input type="text" defaultValue="" />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Conformité</label>
-                  <select className={theme === 'dark' ? 'dark-select-white' : 'light-select-white'}>
-                    <option>Conforme</option>
-                    <option>Non Conforme</option>
-                    <option>Absence BL</option>
-                    <option>Absence cachet et Signature ( Décharge)</option>
-                    <option>Kilométrage erronée</option>
-                    <option>Nombre de palette non conforme</option>
-                    <option>Retard communication dérogation</option>
-                    <option>Retard envoie document</option>
-                    <option>Livraison effectuée</option>
-                    <option>Livraison non effectuée</option>
-                    <option>Autres</option>
-                  </select>
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Observation</label>
-                  <input type="text" defaultValue="" />
-                </div>
-              </div>
-
-              {/* Row 3 - Contains sub-groups visually */}
-              <div className={theme === 'dark' ? 'dark-form-row-multi' : 'light-form-row-multi'}>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>H.départ</label>
-                  <div className="time-input-group">
-                    <input type="time" />
-                  </div>
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Km.Départ</label>
-                  <input type="text" defaultValue="" />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>H.retour</label>
-                  <div className="time-input-group">
-                    <input type="time" />
-                  </div>
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Km.Retour</label>
-                  <input type="text" defaultValue="" />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Km dernier client</label>
-                  <input type="text" defaultValue="" />
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'}>
-                  <label>Km/Moy</label>
-                  <input type="text" defaultValue="" />
-                </div>
-              </div>
-
-              {/* Row 4 */}
-              <div className={theme === 'dark' ? 'dark-form-row align-end' : 'light-form-row align-end'}>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'} style={{ maxWidth: '250px' }}>
-                  <label>Total palette</label>
-                  <div className="flex-row gap-2">
-                    <input type="text" defaultValue="0" style={{ textAlign: 'center' }} />
-                    <input type="text" defaultValue="0" style={{ textAlign: 'center' }} />
-                  </div>
-                </div>
-                <div className={theme === 'dark' ? 'dark-form-group' : 'light-form-group'} style={{ maxWidth: '150px' }}>
-                  <label>Tournée sec.</label>
-                  <input type="text" defaultValue="0" style={{ textAlign: 'center' }} />
-                </div>
-                <div className="checkbox-group mt-6">
-                  <input type="checkbox" id="apres-midi" />
-                  <label htmlFor="apres-midi">Après midi</label>
-                </div>
-                <div className="checkbox-group mt-6" style={{ marginLeft: '20px' }}>
-                  <input type="checkbox" id="inter-site" />
-                  <label htmlFor="inter-site">Tournée inter site</label>
-                </div>
-              </div>
-            </div>
-
-            {/* Table Section */}
-            <div className={`${theme === 'dark' ? 'dark-table-container' : 'light-table-container'} mt-4`}>
-              <table className={theme === 'dark' ? 'dark-themed-table' : 'light-themed-table'}>
-                <thead>
-                  <tr>
-                    <th>Client</th>
-                    <th>Dep</th>
-                    <th>UM</th>
-                    <th>Pal</th>
-                    <th>Arrivée.Client</th>
-                    <th>Départ.Client</th>
-                    <th>Km.Arv.Client</th>
-                    <th>Taxe</th>
-                    <th>Livrée</th>
-                    <th>Km TH</th>
-                    <th>Region</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="11" className="empty-message">Aucun client</td>
-                    </tr>
-                  ) : (
-                    tableRows.map((row, index) => (
-                      <tr key={row.id}>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.client} onChange={(e) => updateClientRow(index, 'client', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} placeholder="... " /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.dep} onChange={(e) => updateClientRow(index, 'dep', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.um} onChange={(e) => updateClientRow(index, 'um', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.pal} onChange={(e) => updateClientRow(index, 'pal', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="time" value={row.arrivee} onChange={(e) => updateClientRow(index, 'arrivee', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="time" value={row.depart} onChange={(e) => updateClientRow(index, 'depart', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.kmArv} onChange={(e) => updateClientRow(index, 'kmArv', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.taxe} onChange={(e) => updateClientRow(index, 'taxe', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px', textAlign: 'center' }}><input type="checkbox" checked={row.livree} onChange={(e) => updateClientRow(index, 'livree', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#f97316', cursor: 'pointer' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.kmTh} onChange={(e) => updateClientRow(index, 'kmTh', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                        <td style={{ padding: '4px' }}><input type="text" value={row.region} onChange={(e) => updateClientRow(index, 'region', e.target.value)} style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: 'inherit', fontSize: '13px' }} /></td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-              <button 
-                onClick={addClientRow}
-                style={{ 
-                  background: 'transparent', 
-                  border: `1px dashed ${theme === 'dark' ? '#4b5563' : '#cbd5e1'}`, 
-                  color: theme === 'dark' ? '#9ca3af' : '#64748b', 
-                  padding: '10px 16px', 
-                  borderRadius: '6px', 
-                  fontSize: '13px', 
-                  fontWeight: '600', 
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => e.target.style.borderColor = '#f97316'}
-                onMouseLeave={(e) => e.target.style.borderColor = theme === 'dark' ? '#4b5563' : '#cbd5e1'}
-              >
-                + Ajouter une ligne client
-              </button>
-              <button className={theme === 'dark' ? 'dark-save-btn' : 'light-save-btn'}>Enregistrer</button>
-            </div>
-            
-          </section>
-        ) : (
-          <section className="content">
-            <div className="card">
-              <div style={{ fontWeight: 800, color: '#7c2d12', marginBottom: '6px' }}>Sélection requise</div>
-              <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                Sélectionnez une tournée / facture depuis la liste à gauche.
-              </div>
-            </div>
-          </section>
-        ))}
-
-        {activeTab === 'DIVERS' && (hasSelectedTournee ? (
-          <section className="content">
-            {/* SECTION 1: Header Info */}
-            <div className="card divers-card">
-              <div className="card-top-accent"></div>
-              <table className="divers-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Numero</th>
-                    <th>Camion</th>
-                    <th>Chauffeur</th>
-                    <th>Depart</th>
-                    <th>Arrivee</th>
-                    <th>Client</th>
-                      <th>Région</th>
-                      <th>Nb. Palette</th>
-                      <th>Arrivée.Client</th>
-                      <th>Départ.Client</th>
-                      <th>Kms Arrivée</th>
-                      <th>Kms Théorique</th>
-                      <th>Livrée</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[1, 2, 3, 4, 5, 6].map((row) => (
-                    <tr 
-                      key={row} 
-                      className="dynamic-row"
-                      onInput={(e) => {
-                        const tr = e.target.closest('tr');
-                        const hasContent = Array.from(tr.cells).some(td => td.innerText.trim() !== '');
-                        if (hasContent) tr.classList.add('has-data');
-                        else tr.classList.remove('has-data');
-                      }}
-                    >
-                      {Array(8).fill(0).map((_, i) => (
-                        <td 
-                          key={i} 
-                          contentEditable 
-                          onFocus={(e) => e.target.closest('tr').classList.add('row-focus')} 
-                          onBlur={(e) => e.target.closest('tr').classList.remove('row-focus')}
-                        ></td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 mt-4">
-              <button className="btn-outline px-6 py-2 rounded-lg border-2 border-orange-200 text-orange-600 font-bold hover:bg-orange-50 transition-all">ANNULER</button>
-              <button className="btn-primary px-8 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold shadow-lg shadow-orange-200 hover:scale-105 active:scale-95 transition-all">ENREGISTRER LA TOURNÉE</button>
-            </div>
-          </section>
-        ) : (
-          <section className="content">
-            <div className="card">
-              <div style={{ fontWeight: 800, color: '#7c2d12', marginBottom: '6px' }}>Sélection requise</div>
-              <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                Sélectionnez une tournée / facture depuis la liste à gauche.
-              </div>
-            </div>
-          </section>
-        ))}
-
-        {activeTab === 'GIAS' && (hasSelectedTournee ? (
-          <section className="content">
-            {/* SECTION 1: Header Info */}
-            <div className="card divers-card">
-              <div className="card-top-accent"></div>
-              <table className="divers-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Numero</th>
-                    <th>Camion</th>
-                    <th>Chauffeur</th>
-                    <th>Tournée générique</th>
-                    <th>KM facture</th>
-                    <th>Marchandise</th>
-                    <th>Conformite</th>
-                    <th>Observation:</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td contentEditable>--/--/----</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td contentEditable>--</td>
-                    <td>
-                      <select className="table-select" style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '11px', outline: 'none' }}>
-                        <option>Conforme</option>
-                        <option>Non Conforme</option>
-                        <option>Absence BL</option>
-                        <option>Absence cachet et Signature ( Décharge)</option>
-                        <option>Kilométrage erronée</option>
-                        <option>Nombre de palette non conforme</option>
-                        <option>Retard communication dérogation</option>
-                        <option>Retard envoie document</option>
-                        <option>Livraison effectuée</option>
-                        <option>Livraison non effectuée</option>
-                        <option>Autres</option>
-                      </select>
-                    </td>
-                    <td contentEditable>--</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* SECTION 2: Depot Info */}
-            <div className="card divers-card mt-sm">
-              <div className="card-top-accent card-top-accent--gold"></div>
-              <table className="divers-table">
-                <thead>
-                  <tr>
-                    <th>H.départ depot</th>
-                    <th>H.retour depot</th>
-                    <th>Km.Départ depot</th>
-                    <th>Km.Retour depot</th>
-                    <th>Km/Moy.</th>
-                    <th>Km dernier client:</th>
-                    <th>N° prestation</th>
-                    <th>Total palette:</th>
-                    <th>Apres midi</th>
-                    <th>Tournée secondaire</th>
-                    <th>Tournée inter site:</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    {Array(8).fill(0).map((_, i) => (
-                      <td key={i} contentEditable onFocus={(e) => e.target.closest('tr').classList.add('row-focus')} onBlur={(e) => e.target.closest('tr').classList.remove('row-focus')}></td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* SECTION 3: Client Info */}
-            <div className="card divers-card mt-sm">
-              <div className="card-top-accent card-top-accent--green"></div>
-              <table className="divers-table">
-                <thead>
-                  <tr>
-                    <th>Client</th>
-                      <th>Région</th>
-                      <th>Nb. Palette</th>
-                      <th>Arrivée.Client</th>
-                      <th>Départ.Client</th>
-                      <th>Kms Arrivée</th>
-                      <th>Kms Théorique</th>
-                      <th>Livrée</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[1, 2, 3, 4, 5, 6].map((row) => (
-                    <tr 
-                      key={row} 
-                      className="dynamic-row"
-                      onInput={(e) => {
-                        const tr = e.target.closest('tr');
-                        const hasContent = Array.from(tr.cells).some(td => td.innerText.trim() !== '');
-                        if (hasContent) tr.classList.add('has-data');
-                        else tr.classList.remove('has-data');
-                      }}
-                    >
-                      {Array(8).fill(0).map((_, i) => (
-                        <td 
-                          key={i} 
-                          contentEditable 
-                          onFocus={(e) => e.target.closest('tr').classList.add('row-focus')} 
-                          onBlur={(e) => e.target.closest('tr').classList.remove('row-focus')}
-                        ></td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 mt-4">
-              <button className="btn-outline px-6 py-2 rounded-lg border-2 border-orange-200 text-orange-600 font-bold hover:bg-orange-50 transition-all">ANNULER</button>
-              <button className="btn-primary px-8 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold shadow-lg shadow-orange-200 hover:scale-105 active:scale-95 transition-all">ENREGISTRER LA TOURNÉE</button>
-            </div>
-          </section>
-        ) : (
-          <section className="content">
-            <div className="card">
-              <div style={{ fontWeight: 800, color: '#7c2d12', marginBottom: '6px' }}>Sélection requise</div>
-              <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                Sélectionnez une tournée / facture depuis la liste à gauche.
-              </div>
-            </div>
-          </section>
-        ))}
+        {['AZIZA', 'DIVERS', 'GIAS', 'FLEG'].includes(activeTab) && (
+          hasSelectedTournee ? renderTourneeLayout() : renderSelectionRequired()
+        )}
 
         {activeTab === 'CONFRONTATION' && (
           <section className="content">
