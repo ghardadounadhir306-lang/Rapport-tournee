@@ -1,0 +1,65 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Backend: NestJS (start:debug)",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/backend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "start:debug"],
+            "console": "integratedTerminal",
+            "restart": true,
+            "autoAttachChildProcesses": true,
+            "envFile": "${workspaceFolder}/backend/.env",
+            "env": {
+                "PORT": "3001"
+            },
+            "skipFiles": ["<node_internals>/**"],
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/backend/dist/**/*.js"]
+        },
+        {
+            "name": "Backend: Attach (9229)",
+            "type": "node",
+            "request": "attach",
+            "port": 9229,
+            "address": "localhost",
+            "restart": true,
+            "skipFiles": ["<node_internals>/**"],
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/backend/dist/**/*.js"],
+            "localRoot": "${workspaceFolder}/backend",
+            "remoteRoot": "${workspaceFolder}/backend"
+        },
+        {
+            "name": "Frontend: Vite dev server",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/frontend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "dev", "--", "--port", "5173"],
+            "console": "integratedTerminal",
+            "restart": true,
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Frontend: Chrome (5173)",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/frontend/src"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Full Stack: Backend + Frontend",
+            "configurations": [
+                "Backend: NestJS (start:debug)",
+                "Frontend: Vite dev server",
+                "Frontend: Chrome (5173)"
+            ],
+            "stopAll": true
+        }
+    ]
+}
