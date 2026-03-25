@@ -120,6 +120,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  box-sizing: border-box;
   height: 100%;
 }
 
@@ -428,6 +429,7 @@
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); /* Ombre plus moderne */
   margin-bottom: 25px;
   position: relative;
+  box-sizing: border-box;
   transition: all 0.3s ease;
 }
 
@@ -557,6 +559,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  box-sizing: border-box;
   height: 100%;
 }
 
@@ -818,6 +821,7 @@
 
 .pie-chart {
   position: relative;
+  box-sizing: border-box;
   width: 200px;
   height: 200px;
   border-radius: 50%;
@@ -1077,3 +1081,402 @@
   color: #b45309;
   font-weight: 600;
 }
+
+/* Dark Theme UI for AZIZA tab (as requested by user image) */
+.dark-theme-content {
+  background-color: #121417 !important;
+  color: #a0aabf;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  height: 100%;
+}
+
+.dark-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+}
+
+.dark-form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.dark-form-row-multi {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.dark-form-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.dark-form-group label {
+  font-size: 11px;
+  color: #8b94a8;
+  margin-bottom: 4px;
+}
+
+.dark-form-group input[type="text"],
+.dark-form-group input[type="date"],
+.dark-form-group input[type="time"] {
+  background-color: #2a2e35;
+  border: 1px solid #363b45;
+  color: #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.dark-form-group input[type="text"]:focus {
+  border-color: #4b5563;
+}
+
+.dark-select-white {
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  min-height: 34px;
+  font-weight: 500;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.time-input-group {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.time-input-group input {
+  width: 100%;
+}
+
+.time-input-group .clock-icon {
+  position: absolute;
+  right: 8px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.flex-row {
+  display: flex;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.flex-row input {
+  width: 50%;
+}
+
+.align-end {
+  align-items: flex-end;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  margin-left: 10px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #f97316;
+}
+
+.checkbox-group label {
+  font-size: 12px;
+  color: #8b94a8;
+  cursor: pointer;
+}
+
+.dark-table-container {
+  background-color: #1a1d21;
+  border: 1px solid #2a2e35;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dark-themed-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dark-themed-table th {
+  background-color: #21252b;
+  color: #a0aabf;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2a2e35;
+  border-right: 1px solid #2a2e35;
+}
+
+.dark-themed-table td {
+  padding: 12px;
+  font-size: 12px;
+  color: #8b94a8;
+  border-bottom: 1px solid #2a2e35;
+}
+
+.dark-themed-table .empty-message {
+  text-align: center;
+  padding: 40px;
+  color: #5c6370;
+}
+
+.dark-save-btn {
+  background-color: #d97706;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dark-save-btn:hover {
+  background-color: #b45309;
+}
+
+/* Light Theme UI for AZIZA tab */
+.light-theme-content {
+  background-color: #f1f5f9 !important;
+  color: #4b5563;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  height: 100%;
+  padding: 24px 32px !important;
+}
+
+.light-form-container {
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+}
+
+.light-form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.light-form-row-multi {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.light-form-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.light-form-group label {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.light-form-group input[type="text"],
+.light-form-group input[type="date"],
+.light-form-group input[type="time"],
+.light-form-group input[type="number"] {
+  background-color: #f9fafb;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.light-form-group input[type="text"]:focus {
+  border-color: #fb923c;
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.2);
+}
+
+.light-select-white {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  min-height: 34px;
+  font-weight: 500;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.light-table-container {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.light-themed-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.light-themed-table th {
+  background-color: #f8fafc;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 2px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  text-transform: uppercase;
+}
+
+.light-themed-table td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #1f2937;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.light-themed-table .empty-message {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.light-save-btn {
+  background-color: #f97316;
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.2);
+}
+
+.light-save-btn:hover {
+  background-color: #ea580c;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 10px -1px rgba(249, 115, 22, 0.3);
+}
+
+.light-theme-content .checkbox-group label {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+/* Overrides to fix dark theme UI card look */
+.dark-theme-content {
+  padding: 24px 32px !important;
+}
+.dark-form-container {
+  background-color: #1e2126;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #2a2e35;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* GLOBAL DARK THEME OVERRIDES */
+.dark-theme {
+  background-color: #121417;
+  color: #e2e8f0;
+}
+
+.dark-theme .topbar {
+  background-color: #1a1d21;
+  border-bottom: 1px solid #2a2e35;
+}
+
+.dark-theme .topbar .brand span, 
+.dark-theme .topbar .topnav-item {
+  color: #e2e8f0 !important;
+}
+
+.dark-theme .sidebar {
+  background-color: #1a1d21;
+  border-right: 1px solid #2a2e35;
+  color: #e2e8f0;
+}
+
+.dark-theme .sidebar-title {
+  color: #e2e8f0 !important;
+}
+
+.dark-theme .search-field {
+  background-color: #2a2e35;
+  border: 1px solid #363b45;
+  color: #e2e8f0;
+}
+
+.dark-theme .search-field::placeholder {
+  color: #6b7280;
+}
+
+.dark-theme .tms-table-container {
+  border-color: #2a2e35;
+}
+
+.dark-theme .tms-table-container th {
+  background-color: #21252b;
+  color: #a0aabf;
+  border-color: #2a2e35;
+}
+
+.dark-theme .tms-table-container td {
+  border-color: #2a2e35;
+  color: #a0aabf;
+}
+
+.dark-theme .tms-table-cell--highlight {
+  background-color: #2a2e35;
+  color: #f97316;
+}
+
+.dark-theme .tms-table-row:hover {
+  background-color: #2d3748 !important;
+}
+
+.dark-theme .tms-table-row--selected {
+  background-color: #2a2e35 !important;
+}
+
