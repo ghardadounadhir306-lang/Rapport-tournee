@@ -16,11 +16,12 @@ export class UsersController {
   }
 
   @Post()
-  create(@Body() body: { name?: string; email?: string; role?: string }) {
+  create(@Body() body: { name?: string; email?: string; role?: string; matricule?: string }) {
     return this.usersService.create({
-      name: body.name ?? '',
-      email: body.email ?? '',
-      role: body.role ?? 'user',
+      name:       body.name      ?? '',
+      email:      body.email     ?? '',
+      role:       body.role      ?? 'user',
+      matricule:  body.matricule ?? '',
     });
   }
 

@@ -8,6 +8,7 @@ export declare class UsersController {
             name: string;
             email: string;
             role: string;
+            matricule: string | null;
             created_at: string;
         }[];
     }>;
@@ -18,11 +19,13 @@ export declare class UsersController {
         role: string;
         name: string;
         email: string;
+        matricule: string | null;
     }>;
     create(body: {
         name?: string;
         email?: string;
         role?: string;
+        matricule?: string;
     }): Promise<{
         message: string;
     }>;

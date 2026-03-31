@@ -14,7 +14,7 @@ export default function AdminPage() {
   const [loading, setLoading]   = useState(false)
   const [sending, setSending]   = useState(false)
   const [message, setMessage]   = useState(null) // { type: 'success'|'error', text }
-  const [form, setForm]         = useState({ name: '', email: '', role: 'user' })
+  const [form, setForm]         = useState({ name: '', email: '', role: 'user', matricule: '' })
 
   // ── Load users ──────────────────────────────────────────────
   const loadUsers = async () => {
@@ -44,12 +44,17 @@ export default function AdminPage() {
       const res  = await fetch(apiUrl('/api/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name:      form.name,
+          email:     form.email,
+          role:      form.role,
+          matricule: form.matricule || undefined,
+        }),
       })
       const data = await res.json()
-      if (res.ok) {
+        if (res.ok) {
         setMessage({ type: 'success', text: data.message })
-        setForm({ name: '', email: '', role: 'user' })
+        setForm({ name: '', email: '', role: 'user', matricule: '' })
         loadUsers()
       } else {
         setMessage({ type: 'error', text: errorMessage(data) })
@@ -112,7 +117,7 @@ export default function AdminPage() {
           <h3 style={{ margin: '0 0 20px 0', fontSize: '15px', color: '#1e293b', fontWeight: '800' }}>
             ➕ CRÉER UN NOUVEAU COMPTE
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px 140px', gap: '12px', alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 130px 130px 140px', gap: '12px', alignItems: 'end' }}>
 
             <div>
               <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>Nom complet</label>
@@ -132,6 +137,17 @@ export default function AdminPage() {
                 placeholder="Ex: ahmed@example.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>Matricule</label>
+              <input
+                type="text"
+                placeholder="Ex: MAT-001"
+                value={form.matricule}
+                onChange={(e) => setForm({ ...form, matricule: e.target.value })}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
@@ -163,7 +179,7 @@ export default function AdminPage() {
             </button>
           </div>
           <p style={{ margin: '12px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
-            * Un mot de passe aléatoire sera généré et envoyé automatiquement par email
+            * Un mot de passe aléatoire sera généré et envoyé automatiquement par email (matricule optionnel)
           </p>
         </div>
 
@@ -181,7 +197,7 @@ export default function AdminPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f1f5f9' }}>
-                  {['Nom', 'Email', 'Rôle', 'Créé le', ''].map(h => (
+                  {['Nom', 'Email', 'Matricule', 'Rôle', 'Créé le', ''].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e5e7eb' }}>{h}</th>
                   ))}
                 </tr>
@@ -191,6 +207,9 @@ export default function AdminPage() {
                   <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '12px 14px', fontWeight: '600', color: '#1e293b' }}>{user.name}</td>
                     <td style={{ padding: '12px 14px', color: '#64748b' }}>{user.email}</td>
+                    <td style={{ padding: '12px 14px', color: '#64748b', fontFamily: 'monospace', fontSize: '12px' }}>
+                      {user.matricule || <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{
                         padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',

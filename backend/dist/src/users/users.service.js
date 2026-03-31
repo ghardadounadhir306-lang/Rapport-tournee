@@ -66,7 +66,7 @@ let UsersService = UsersService_1 = class UsersService {
         return err?.code === 'ER_NO_SUCH_TABLE';
     }
     appUsersTableHint() {
-        return ('Table app_users manquante. Exécutez: mysql -u root -p r_tournee < backend/sql/patches/004_app_users.sql');
+        return 'Table app_users manquante. Executez: backend/sql/patches/004_app_users.sql';
     }
     async findAll() {
         try {
@@ -77,6 +77,7 @@ let UsersService = UsersService_1 = class UsersService {
                     name: u.name,
                     email: u.email,
                     role: u.role,
+                    matricule: u.matricule ?? null,
                     created_at: u.createdAt.toISOString(),
                 })),
             };
@@ -92,6 +93,7 @@ let UsersService = UsersService_1 = class UsersService {
         const name = dto.name?.trim();
         const email = dto.email?.trim().toLowerCase();
         const role = dto.role === 'admin' ? 'admin' : 'user';
+        const matricule = dto.matricule?.trim() || null;
         if (!name || !email) {
             throw new common_1.BadRequestException('Nom et email sont obligatoires');
         }
@@ -109,19 +111,14 @@ let UsersService = UsersService_1 = class UsersService {
             throw e;
         }
         if (existing) {
-            throw new common_1.ConflictException('Un utilisateur avec cet email existe déjà');
+            throw new common_1.ConflictException('Un utilisateur avec cet email existe deja');
         }
         if (!this.mail.isConfigured()) {
-            throw new common_1.BadRequestException('SMTP non configuré. Définissez SMTP_HOST, SMTP_USER et SMTP_PASS dans .env pour créer des utilisateurs et envoyer les mots de passe.');
+            throw new common_1.BadRequestException('SMTP non configure. Definissez SMTP_HOST, SMTP_USER et SMTP_PASS dans .env.');
         }
         const plainPassword = (0, crypto_1.randomBytes)(10).toString('base64url').slice(0, 14);
         const passwordHash = await bcrypt.hash(plainPassword, 10);
-        const user = this.userRepo.create({
-            name,
-            email,
-            role,
-            passwordHash,
-        });
+        const user = this.userRepo.create({ name, email, role, matricule, passwordHash });
         try {
             await this.userRepo.save(user);
         }
@@ -131,28 +128,32 @@ let UsersService = UsersService_1 = class UsersService {
             }
             throw e;
         }
+        const emailLines = [
+            `Bonjour ${name},`,
+            '',
+            `Votre compte R.Tournee a ete cree.`,
+            `Role : ${role === 'admin' ? 'Administrateur' : 'Utilisateur'}`,
+            ...(matricule ? [`Matricule : ${matricule}`] : []),
+            '',
+            `Email de connexion      : ${email}`,
+            `Mot de passe temporaire : ${plainPassword}`,
+            '',
+            'Connectez-vous a l\'application avec ces identifiants.',
+            'Changez votre mot de passe a la premiere connexion.',
+        ];
         try {
             await this.mail.sendMail({
                 to: email,
-                subject: 'Vos accès R.Tournee',
-                text: [
-                    `Bonjour ${name},`,
-                    '',
-                    `Votre compte a été créé avec le rôle : ${role === 'admin' ? 'Administrateur' : 'Utilisateur'}.`,
-                    `Mot de passe temporaire : ${plainPassword}`,
-                    '',
-                    'Connectez-vous à l’application et changez ce mot de passe si nécessaire.',
-                ].join('\n'),
+                subject: 'Vos acces R.Tournee',
+                text: emailLines.join('\n'),
             });
         }
         catch (e) {
             await this.userRepo.delete({ id: user.id });
             this.logger.error('Failed to send welcome email; user rolled back', e);
-            throw new common_1.BadRequestException("L'email n'a pas pu être envoyé. Vérifiez la configuration SMTP.");
+            throw new common_1.BadRequestException("L'email n'a pas pu etre envoye. Verifiez la configuration SMTP.");
         }
-        return {
-            message: 'Utilisateur créé et mot de passe envoyé par email.',
-        };
+        return { message: 'Utilisateur cree et mot de passe envoye par email.' };
     }
     BUILTIN = {
         'lumiere.logistique@gmail.com': { password: 'admin123', role: 'admin' },
@@ -173,11 +174,16 @@ let UsersService = UsersService_1 = class UsersService {
             if (!valid) {
                 throw new common_1.UnauthorizedException('Identifiant ou mot de passe incorrect.');
             }
-            return { role: dbUser.role, name: dbUser.name, email: dbUser.email };
+            return {
+                role: dbUser.role,
+                name: dbUser.name,
+                email: dbUser.email,
+                matricule: dbUser.matricule ?? null,
+            };
         }
         const builtin = this.BUILTIN[lowerEmail];
         if (builtin && builtin.password === password) {
-            return { role: builtin.role, name: 'Admin', email: lowerEmail };
+            return { role: builtin.role, name: 'Admin', email: lowerEmail, matricule: null };
         }
         throw new common_1.UnauthorizedException('Identifiant ou mot de passe incorrect.');
     }
@@ -204,7 +210,7 @@ let UsersService = UsersService_1 = class UsersService {
             }
             throw e;
         }
-        return { message: 'Utilisateur supprimé' };
+        return { message: 'Utilisateur supprime' };
     }
 };
 exports.UsersService = UsersService;

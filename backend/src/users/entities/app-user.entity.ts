@@ -14,6 +14,9 @@ export class AppUser {
   @Column({ type: 'varchar', length: 32, default: 'user' })
   role!: string;
 
+  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  matricule!: string | null;
+
   @Column({ name: 'password_hash', type: 'varchar', length: 255 })
   passwordHash!: string;
 

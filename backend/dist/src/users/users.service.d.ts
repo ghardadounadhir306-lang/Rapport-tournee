@@ -5,6 +5,7 @@ export type CreateUserDto = {
     name: string;
     email: string;
     role: string;
+    matricule?: string;
 };
 export declare class UsersService {
     private readonly userRepo;
@@ -19,6 +20,7 @@ export declare class UsersService {
             name: string;
             email: string;
             role: string;
+            matricule: string | null;
             created_at: string;
         }[];
     }>;
@@ -30,6 +32,7 @@ export declare class UsersService {
         role: string;
         name: string;
         email: string;
+        matricule: string | null;
     }>;
     remove(id: number): Promise<{
         message: string;

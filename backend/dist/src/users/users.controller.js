@@ -31,6 +31,7 @@ let UsersController = class UsersController {
             name: body.name ?? '',
             email: body.email ?? '',
             role: body.role ?? 'user',
+            matricule: body.matricule ?? '',
         });
     }
     remove(id) {

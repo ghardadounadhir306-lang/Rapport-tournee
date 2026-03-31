@@ -16,6 +16,7 @@ let AppUser = class AppUser {
     name;
     email;
     role;
+    matricule;
     passwordHash;
     createdAt;
 };
@@ -36,6 +37,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 32, default: 'user' }),
     __metadata("design:type", String)
 ], AppUser.prototype, "role", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 100, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], AppUser.prototype, "matricule", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'password_hash', type: 'varchar', length: 255 }),
     __metadata("design:type", String)
