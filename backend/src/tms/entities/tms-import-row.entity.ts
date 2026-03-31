@@ -5,7 +5,7 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 @Index(['toucode'])
 @Index(['cdate'])
 export class TmsImportRow {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  @PrimaryGeneratedColumn({ type: 'bigint' })
   id!: string;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
@@ -35,7 +35,7 @@ export class TmsImportRow {
   @Column({ type: 'varchar', length: 128, nullable: true })
   otsnumbdx!: string | null;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   ottmt!: string | null;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
@@ -80,11 +80,14 @@ export class TmsImportRow {
   @Column({ type: 'varchar', length: 128, nullable: true })
   voycle!: string | null;
 
-  @Column({ type: 'datetime', precision: 3, nullable: true })
+  @Column({ type: 'timestamp', precision: 3, nullable: true })
   voydtd!: Date | null;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   voyhrd!: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  voyhrf!: string | null;
 
   @Column({ type: 'int', nullable: true })
   voypal!: number | null;
@@ -101,7 +104,7 @@ export class TmsImportRow {
   @Column({ type: 'decimal', precision: 6, scale: 2, nullable: true })
   taux_remplissage_ton!: string | null;
 
-  @Column({ type: 'datetime', precision: 3, nullable: true })
+  @Column({ type: 'timestamp', precision: 3, nullable: true })
   mdate!: Date | null;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
@@ -131,18 +134,18 @@ export class TmsImportRow {
   @Column({ type: 'varchar', length: 255, nullable: true })
   chargement!: string | null;
 
-  @Column({ type: 'datetime', precision: 3, nullable: true })
+  @Column({ type: 'timestamp', precision: 3, nullable: true })
   voydtf!: Date | null;
 
-  @Column({ type: 'datetime', precision: 3, nullable: true })
+  @Column({ type: 'timestamp', precision: 3, nullable: true })
   otdhd!: Date | null;
 
   @Column({ type: 'text', nullable: true })
   voymemo!: string | null;
 
-  @Column({ type: 'longtext', nullable: true })
+  @Column({ type: 'text', nullable: true })
   raw_json!: string | null;
 
-  @Column({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' })
+  @Column({ type: 'timestamp', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' })
   created_at!: Date;
 }

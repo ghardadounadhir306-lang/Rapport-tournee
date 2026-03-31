@@ -33,6 +33,28 @@ $ npm install
 
 ## Database (MySQL)
 
+### Windows + XAMPP (command `mysql` not found)
+
+XAMPP installs the client here (adjust the drive/folder if yours differs):
+
+`C:\xampp\mysql\bin\mysql.exe`
+
+Add that folder to your user **PATH**, or call the executable with its full path. From the **repository root** (`R.tournee`), to apply `004_app_users.sql`:
+
+```powershell
+Get-Content -Raw backend/sql/patches/004_app_users.sql | & "C:\xampp\mysql\bin\mysql.exe" -u root -p r_tournee
+```
+
+If the MySQL `root` user has **no password** (default XAMPP), omit `-p`:
+
+```powershell
+Get-Content -Raw backend/sql/patches/004_app_users.sql | & "C:\xampp\mysql\bin\mysql.exe" -u root r_tournee
+```
+
+Alternative: open **phpMyAdmin** (http://localhost/phpmyadmin), select database `r_tournee`, tab **SQL**, paste the contents of `backend/sql/patches/004_app_users.sql`, and execute.
+
+---
+
 1) Copy env file and adjust credentials:
 
 ```bash
@@ -45,27 +67,89 @@ PowerShell:
 Copy-Item .env.example .env
 ```
 
-2) Create the database schema (creates DB `r_tournee` by default):
+2) Create the database schema (creates DB `r_tournee` by default).
+
+From the `backend` folder, **Git Bash / cmd**:
 
 ```bash
-$ mysql -u root -p < sql/schema.mysql.sql
-```
-
-If you already have tables/data and only want to add the Excel import table, run:
-
-```bash
-$ mysql -u root -p < sql/patches/001_create_tms_import_rows.sql
-```
-
-PowerShell (same command, just run it from the `backend` folder):
-
-```powershell
 mysql -u root -p < sql/schema.mysql.sql
 ```
+
+**PowerShell** does not support `<` redirection for files. Use one of these:
+
+```powershell
+# from backend folder — pipe the file into mysql
+Get-Content -Raw sql/schema.mysql.sql | mysql -u root -p
+```
+
+Or call cmd for classic redirection:
+
+```powershell
+cmd /c "mysql -u root -p < sql/schema.mysql.sql"
+```
+
+If you already have tables/data and only want to add the Excel import table:
+
+```bash
+mysql -u root -p < sql/patches/001_create_tms_import_rows.sql
+```
+
+3) **Existing database** (schema already applied without `app_users`): add the table.
+
+From the **repository root** (`R.tournee`):
+
+```bash
+mysql -u root -p r_tournee < backend/sql/patches/004_app_users.sql
+```
+
+**PowerShell** (from repository root):
+
+```powershell
+Get-Content -Raw backend/sql/patches/004_app_users.sql | mysql -u root -p r_tournee
+```
+
+Or:
+
+```powershell
+cmd /c "mysql -u root -p r_tournee < backend/sql/patches/004_app_users.sql"
+```
+
+Fresh installs from `sql/schema.mysql.sql` now include `app_users` automatically.
+
+### Seed TMS Excel export (CSV) into `tms_import_rows`
+
+From `backend/`, with MySQL running and `backend/.env` pointing at your database:
+
+```bash
+npm run seed:tms
+```
+
+The script reads `Copie de ExcelFile_2026-03-13T10_19_12.xlsx - Sheet1.csv` from your **Downloads** folder (Windows), or set `TMS_SEED_CSV` to the full path of the CSV. It ensures `ottmt` is `VARCHAR(64)` and adds `voyhrf` if missing, then replaces all rows in `tms_import_rows` with the file contents.
+
+Optional manual patch (if you prefer not to auto-migrate): `sql/patches/005_fix_tms_columns.sql`.
+
+**GPS & contrôle opérationnel** — si la base a été créée avant cette fonctionnalité, appliquer :
+
+```powershell
+Get-Content -Raw backend/sql/patches/006_gps_tms_form_and_points.sql | mysql -u root -p r_tournee
+```
+
+Cela ajoute `tms_form_id` sur `gps_points`, rend `tournee_id` nullable, et les colonnes `gps_*` sur `tms_form_data`. Les nouvelles installations via `sql/schema.mysql.sql` incluent déjà la structure `gps_points` à jour.
+
+Endpoints : `POST /api/gps/points`, `POST /api/gps/points/batch`, `GET /api/gps/tournee/:id`, `GET /api/alerts`. Variable optionnelle : `GPS_MIN_POINTS_REAL_ROUTE` (défaut `3`) pour l’alerte « tournée sans trace GPS ».
+
+`GET /api/tms` loads up to `TMS_LIST_MAX_ROWS` rows from `tms_import_rows` (default **100000**), then **deduplicates** by TMS identifier (`tms-…`) for the sidebar. Previously only **50** rows were loaded, which collapsed to a few dozen unique tours even when the database held tens of thousands of lines.
+
+## Stack (R.Tournee)
+
+- **API**: NestJS on Node.js (no PHP, no Apache). REST routes are under `/tms`, `/api/tms`, `/users`, `/api/users`, etc.
+- **SMTP**: Optional; required to create users from the admin screen. Set `SMTP_*` and `MAIL_*` in `.env` (see `.env.example`).
+- **Frontend**: The Vite app in `../frontend` calls this API via `/api/...` in development (proxy) or `VITE_API_URL` in production builds.
 
 The backend reads these variables:
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
 - Optional: `DB_LOGGING=true`
+- Optional: `TMS_LIST_MAX_ROWS` (default `100000`) — cap for `/api/tms` list loading
 
 ## Compile and run the project
 

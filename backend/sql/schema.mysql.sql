@@ -11,6 +11,7 @@ CREATE DATABASE IF NOT EXISTS r_tournee
   COLLATE utf8mb4_unicode_ci;
 USE r_tournee;
 
+DROP TABLE IF EXISTS app_users;
 DROP TABLE IF EXISTS attachments;
 DROP TABLE IF EXISTS anomaly_comments;
 DROP TABLE IF EXISTS anomalies;
@@ -73,7 +74,7 @@ CREATE TABLE tms_import_rows (
   otsetat VARCHAR(64) NULL,
   otskm2 DECIMAL(10,2) NULL,
   otsnumbdx VARCHAR(128) NULL,
-  ottmt DECIMAL(12,2) NULL,
+  ottmt VARCHAR(64) NULL,
   placha1i VARCHAR(64) NULL,
   plakm1 DECIMAL(10,2) NULL,
   plakm2 DECIMAL(10,2) NULL,
@@ -90,6 +91,7 @@ CREATE TABLE tms_import_rows (
   voycle VARCHAR(128) NULL,
   voydtd DATETIME(3) NULL,
   voyhrd VARCHAR(32) NULL,
+  voyhrf VARCHAR(32) NULL,
   voypal INT NULL,
   performance_camion DECIMAL(10,4) NULL,
   performance_chauffeur DECIMAL(10,4) NULL,
@@ -180,7 +182,8 @@ CREATE TABLE commandes (
 
 CREATE TABLE gps_points (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  tournee_id BIGINT UNSIGNED NOT NULL,
+  tournee_id BIGINT UNSIGNED NULL,
+  tms_form_id VARCHAR(255) NULL,
   latitude DECIMAL(10,7) NOT NULL,
   longitude DECIMAL(10,7) NOT NULL,
   altitude_m FLOAT NULL,
@@ -189,6 +192,7 @@ CREATE TABLE gps_points (
   recorded_at DATETIME(3) NOT NULL,
   PRIMARY KEY (id),
   KEY ix_gps_tournee_time (tournee_id, recorded_at),
+  KEY ix_gps_tms_form_time (tms_form_id, recorded_at),
   CONSTRAINT fk_gps_tournee FOREIGN KEY (tournee_id) REFERENCES tournees(id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -322,6 +326,18 @@ CREATE TABLE attachments (
   KEY ix_attachments_anomalie (anomalie_id),
   CONSTRAINT fk_attachments_anomalie FOREIGN KEY (anomalie_id) REFERENCES anomalies(id)
     ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Application users (NestJS admin UI)
+CREATE TABLE app_users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  role VARCHAR(32) NOT NULL DEFAULT 'user',
+  password_hash VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_app_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

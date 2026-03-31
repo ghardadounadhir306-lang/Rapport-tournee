@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS `tms_form_data`;
+
+CREATE TABLE `tms_form_data` (
+  `id` varchar(255) NOT NULL,
+  `tms_id` varchar(255) DEFAULT NULL,
+  `date` varchar(255) DEFAULT NULL,
+  `wms` varchar(255) DEFAULT NULL,
+  `prestation` varchar(255) DEFAULT NULL,
+  `truck` varchar(255) DEFAULT NULL,
+  `driver` varchar(255) DEFAULT NULL,
+  `dep` varchar(255) DEFAULT NULL,
+  `km_facture` varchar(255) DEFAULT NULL,
+  `marchandise` varchar(255) DEFAULT NULL,
+  `conformite` varchar(255) DEFAULT NULL,
+  `observation` text DEFAULT NULL,
+  `h_depart` varchar(255) DEFAULT NULL,
+  `km_depart` varchar(255) DEFAULT NULL,
+  `h_retour` varchar(255) DEFAULT NULL,
+  `km_retour` varchar(255) DEFAULT NULL,
+  `km_dernier_client` varchar(255) DEFAULT NULL,
+  `km_moy` varchar(255) DEFAULT NULL,
+  `total_palettes` varchar(255) DEFAULT NULL,
+  `total_palettes_2` varchar(255) DEFAULT NULL,
+  `tournee_sec` varchar(255) DEFAULT NULL,
+  `apres_midi` tinyint(1) DEFAULT 0,
+  `inter_site` tinyint(1) DEFAULT 0,
+  `table_rows` json DEFAULT NULL,
+  `created_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

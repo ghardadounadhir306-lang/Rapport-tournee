@@ -1,46 +1,261 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as XLSX from 'xlsx';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { TmsImportRow } from './entities/tms-import-row.entity';
+import { TmsFormData } from './entities/tms-form-data.entity';
 
 @Injectable()
 export class TmsService {
   constructor(
     @InjectRepository(TmsImportRow)
     private readonly tmsImportRowRepo: Repository<TmsImportRow>,
+    @InjectRepository(TmsFormData)
+    private readonly formDataRepo: Repository<TmsFormData>,
+    private readonly dataSource: DataSource,
   ) {}
 
-  async getData() {
+  /** Max rows loaded for GET /api/tms (before dedupe by TMS id). Default 100000 so CSV-sized imports show fully. */
+  private listMaxRows(): number {
+    const n = Number(process.env.TMS_LIST_MAX_ROWS);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100_000;
+  }
+
+  async getFormData(id: string) {
     try {
-      const [entriesCount, rows] = await Promise.all([
-        this.tmsImportRowRepo.count(),
-        this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take: 50 }),
-      ]);
-
-      const list = this.buildListFromRows(rows);
-
-      return {
-        entriesCount,
-        list,
-        active: null,
-      };
-    } catch (e: any) {
-      if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('otsnumbdx')) {
-        const rows = await this.fetchRowsWithoutOtsnumbdx();
-        const list = this.buildListFromRows(rows);
+      const data = await this.formDataRepo.findOne({ where: { id } });
+      if (data) {
+        const input_data = {
+          date: data.date,
+          wms: data.wms,
+          prestation: data.prestation,
+          truck: data.truck,
+          driver: data.driver,
+          dep: data.dep,
+          kmFacture: data.km_facture,
+          marchandise: data.marchandise,
+          conformite: data.conformite,
+          observation: data.observation,
+          hDepart: data.h_depart,
+          kmDepart: data.km_depart,
+          hRetour: data.h_retour,
+          kmRetour: data.km_retour,
+          kmDernierClient: data.km_dernier_client,
+          kmMoy: data.km_moy,
+          totalPalettes: data.total_palettes,
+          totalPalettes2: data.total_palettes_2,
+          tourneeSec: data.tournee_sec,
+          apresMidi: Boolean(data.apres_midi),
+          interSite: Boolean(data.inter_site),
+          gpsStartLat: data.gps_start_lat != null ? String(data.gps_start_lat) : '',
+          gpsStartLng: data.gps_start_lng != null ? String(data.gps_start_lng) : '',
+          gpsEndLat: data.gps_end_lat != null ? String(data.gps_end_lat) : '',
+          gpsEndLng: data.gps_end_lng != null ? String(data.gps_end_lng) : '',
+          gpsStartLabel: '',
+          gpsEndLabel: '',
+        };
+        const tableRows = data.table_rows ?? [];
         return {
-          entriesCount: await this.tmsImportRowRepo.count(),
-          list,
-          active: null,
+          id: data.id,
+          tms_id: data.tms_id,
+          table_rows: tableRows,
+          tableRows,
+          input_data,
+          formData: input_data,
         };
       }
-      if (e?.code === 'ER_NO_SUCH_TABLE') {
+      return { id, tms_id: id, table_rows: [], tableRows: [], input_data: {}, formData: {} };
+    } catch (e: any) {
+      const sqlState = e?.sqlState ?? e?.driverError?.sqlState;
+      const errno = e?.errno ?? e?.driverError?.errno;
+      const msg = String(e?.message ?? e?.driverError?.message ?? '');
+      if (e?.code === 'ER_NO_SUCH_TABLE' || sqlState === '42S02' || errno === 1146 || errno === 1932 || msg.includes('tms_form_data') && msg.includes("doesn't exist")) {
         throw new BadRequestException(
-          'Missing table tms_import_rows. Run sql/schema.mysql.sql to create the DB schema.',
+          "La table tms_form_data n'existe pas. Exécutez le patch SQL: backend/sql/patches/007_create_tms_form_data.sql",
         );
       }
       throw e;
+    }
+  }
+
+  async saveFormData(id: string, body: any) {
+    try {
+      let existing = await this.formDataRepo.findOne({ where: { id } });
+      if (!existing) {
+        existing = this.formDataRepo.create({ id, tms_id: id });
+      }
+      const inputs = body.input_data || {};
+      
+      existing.date = inputs.date || null;
+      existing.wms = inputs.wms || null;
+      existing.prestation = inputs.prestation || null;
+      existing.truck = inputs.truck || null;
+      existing.driver = inputs.driver || null;
+      existing.dep = inputs.dep || null;
+      existing.km_facture = inputs.kmFacture || null;
+      existing.marchandise = inputs.marchandise || null;
+      existing.conformite = inputs.conformite || null;
+      existing.observation = inputs.observation || null;
+      existing.h_depart = inputs.hDepart || null;
+      existing.km_depart = inputs.kmDepart || null;
+      existing.h_retour = inputs.hRetour || null;
+      existing.km_retour = inputs.kmRetour || null;
+      existing.km_dernier_client = inputs.kmDernierClient || null;
+      existing.km_moy = inputs.kmMoy || null;
+      existing.total_palettes = inputs.totalPalettes || null;
+      existing.total_palettes_2 = inputs.totalPalettes2 || null;
+      existing.tournee_sec = inputs.tourneeSec || null;
+      existing.apres_midi = Boolean(inputs.apresMidi);
+      existing.inter_site = Boolean(inputs.interSite);
+
+      const toDec = (v: unknown) => {
+        if (v === '' || v === null || v === undefined) return null;
+        const n = Number(String(v).replace(',', '.'));
+        return Number.isFinite(n) ? n.toFixed(7) : null;
+      };
+      existing.gps_start_lat = toDec(inputs.gpsStartLat ?? inputs.gps_start_lat) as any;
+      existing.gps_start_lng = toDec(inputs.gpsStartLng ?? inputs.gps_start_lng) as any;
+      existing.gps_end_lat = toDec(inputs.gpsEndLat ?? inputs.gps_end_lat) as any;
+      existing.gps_end_lng = toDec(inputs.gpsEndLng ?? inputs.gps_end_lng) as any;
+
+      existing.table_rows = body.table_rows || [];
+      
+      try {
+        return await this.formDataRepo.save(existing);
+      } catch (e: any) {
+        if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('gps_')) {
+          delete (existing as any).gps_start_lat;
+          delete (existing as any).gps_start_lng;
+          delete (existing as any).gps_end_lat;
+          delete (existing as any).gps_end_lng;
+          return await this.formDataRepo.save(existing);
+        }
+        throw e;
+      }
+    } catch (e: any) {
+      const sqlState = e?.sqlState ?? e?.driverError?.sqlState;
+      const errno = e?.errno ?? e?.driverError?.errno;
+      const msg = String(e?.message ?? e?.driverError?.message ?? '');
+      if (e?.code === 'ER_NO_SUCH_TABLE' || sqlState === '42S02' || errno === 1146 || errno === 1932 || msg.includes('tms_form_data') && msg.includes("doesn't exist")) {
+        throw new BadRequestException(
+          "La table tms_form_data n'existe pas. Exécutez le patch SQL: backend/sql/patches/007_create_tms_form_data.sql",
+        );
+      }
+      throw e;
+    }
+  }
+
+  async getData(query: Record<string, string> = {}) {
+    const hasFilters = Object.values(query).some((v) => v != null && String(v).trim() !== '');
+    const take = this.listMaxRows();
+
+    // Fetch from tms_import_rows (Excel imports)
+    let importRows: Array<Partial<TmsImportRow>> = [];
+    let importCount = 0;
+    try {
+      [importCount, importRows] = await Promise.all([
+        this.tmsImportRowRepo.count(),
+        this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take }),
+      ]);
+    } catch (e: any) {
+      if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('otsnumbdx')) {
+        importRows = await this.fetchRowsWithoutOtsnumbdx();
+        importCount = await this.tmsImportRowRepo.count();
+      }
+      // 42P01 = postgres table does not exist — silently skip
+      else if (e?.code !== '42P01' && e?.code !== 'ER_NO_SUCH_TABLE') {
+        throw e;
+      }
+    }
+
+    // Fetch from transport_data (migrated XAMPP data)
+    const transportRows = await this.fetchTransportDataRows(take);
+    const totalCount = importCount + transportRows.length;
+
+    // transport_data: each row is its own entry — no deduplication (id already unique via ROW_NUMBER)
+    const transportList = transportRows.map((row) => this.mapRowToListItem(row));
+
+    // tms_import_rows: keep existing deduplication by TMS number
+    const importList = this.buildListFromRows(importRows);
+
+    let list = [...transportList, ...importList];
+    if (hasFilters) {
+      list = this.filterListByQuery(list, query);
+    }
+
+    return {
+      entriesCount: totalCount,
+      list,
+      active: null,
+    };
+  }
+
+  private async fetchTransportDataRows(limit: number): Promise<Array<Partial<TmsImportRow>>> {
+    try {
+      const rows: any[] = await this.dataSource.query(
+        `SELECT ROW_NUMBER() OVER (ORDER BY otsnum DESC NULLS LAST) AS _rn,
+                affcode, artcode, cdate, entnbpal, otdcode, otscontainer, otsetat,
+                otskm2, otsnumbdx, ottmt, placha1i, plakm1, plakm2, plalib, plamoti,
+                plargiarr, rgilibl, salnom, saltel, sitcode, sitsiretedi, tiecode,
+                toucode, voycle, voydtd, voyhrd, voypal, performance_camion,
+                performance_chauffeur, taux_remplissage_pal, taux_remplissage_ton,
+                mdate, sitechauff, sitecamion, salmemoe, otsnum, platouordre,
+                salmobilite, km_tsp, toutrafcode, chargement, voydtf, otdhd, voymemo
+         FROM transport_data
+         ORDER BY otsnum DESC NULLS LAST
+         LIMIT ${limit}`,
+      );
+      return rows.map((r) => ({
+        id: `td-${r._rn}`,
+        affcode: r.affcode ?? null,
+        artcode: r.artcode ?? null,
+        cdate: r.cdate ? String(r.cdate).slice(0, 10) : null,
+        entnbpal: r.entnbpal ?? null,
+        otdcode: r.otdcode ?? null,
+        otscontainer: r.otscontainer ?? null,
+        otsetat: r.otsetat ?? null,
+        otskm2: r.otskm2 ?? null,
+        otsnumbdx: r.otsnumbdx ?? null,
+        ottmt: r.ottmt ?? null,
+        placha1i: r.placha1i ?? null,
+        plakm1: r.plakm1 ?? null,
+        plakm2: r.plakm2 ?? null,
+        plalib: r.plalib ?? null,
+        plamoti: r.plamoti ?? null,
+        plargiarr: r.plargiarr ?? null,
+        rgilibl: r.rgilibl ?? null,
+        salnom: r.salnom ?? null,
+        saltel: r.saltel ?? null,
+        sitcode: r.sitcode ?? null,
+        sitsiretedi: r.sitsiretedi ?? null,
+        tiecode: r.tiecode ?? null,
+        toucode: r.toucode ?? null,
+        voycle: r.voycle ?? null,
+        voydtd: r.voydtd ? new Date(r.voydtd) : null,
+        voyhrd: r.voyhrd ?? null,
+        voypal: r.voypal ?? null,
+        performance_camion: r.performance_camion ?? null,
+        performance_chauffeur: r.performance_chauffeur ?? null,
+        taux_remplissage_pal: r.taux_remplissage_pal ?? null,
+        taux_remplissage_ton: r.taux_remplissage_ton ?? null,
+        mdate: r.mdate ? new Date(r.mdate) : null,
+        sitechauff: r.sitechauff ?? null,
+        sitecamion: r.sitecamion ?? null,
+        salmemoe: r.salmemoe ?? null,
+        otsnum: r.otsnum ?? null,
+        platouordre: r.platouordre ?? null,
+        salmobilite: r.salmobilite ?? null,
+        km_tsp: r.km_tsp ?? null,
+        toutrafcode: r.toutrafcode ?? null,
+        chargement: r.chargement ?? null,
+        voydtf: r.voydtf ? new Date(r.voydtf) : null,
+        otdhd: r.otdhd ? new Date(r.otdhd) : null,
+        voymemo: r.voymemo ?? null,
+        raw_json: null,
+      }));
+    } catch {
+      // Table does not exist or no access — silently return empty
+      return [];
     }
   }
 
@@ -90,6 +305,38 @@ export class TmsService {
       rowsDetected: rawRows.length,
       inserted: rowsToInsert.length,
     };
+  }
+
+  async getTransportData(rawLimit?: string) {
+    const parsedLimit = Number(rawLimit);
+    const safeLimit =
+      Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.min(Math.floor(parsedLimit), 1000)
+        : 100;
+
+    try {
+      const rows = await this.dataSource.query(
+        `SELECT * FROM transport_data LIMIT ${safeLimit}`,
+      );
+
+      return {
+        count: Array.isArray(rows) ? rows.length : 0,
+        rows: Array.isArray(rows) ? rows : [],
+      };
+    } catch (e: any) {
+      const code = String(e?.code ?? e?.driverError?.code ?? '');
+      const message = String(e?.message ?? e?.driverError?.message ?? '');
+      if (
+        code === '42P01' ||
+        code === 'ER_NO_SUCH_TABLE' ||
+        message.toLowerCase().includes('transport_data')
+      ) {
+        throw new BadRequestException(
+          "La table transport_data n'existe pas dans la base active.",
+        );
+      }
+      throw e;
+    }
   }
 
   private normalizeHeader(header: string) {
@@ -273,11 +520,14 @@ export class TmsService {
 
     return {
       id: normalizedId,
+      tms: tmsNumber,
       wms: this.asString(row.otsnumbdx) ?? null,
       date,
       site: this.asString(row.sitcode) ?? this.asString(row.sitecamion) ?? this.asString(row.sitechauff) ?? null,
       truck: this.asString(row.voycle) ?? null,
       driver: this.asString(row.salnom) ?? '',
+      /** Client / lieu chargement label (OTDCODE in DB) — used in UI “Client” column */
+      otdcode: this.asString(row.otdcode) ?? null,
       dep: this.asString(row.toutrafcode) ?? null,
       prestation: this.asString(row.plalib) ?? this.asString(row.artcode) ?? this.asString(row.chargement) ?? null,
       active: false,
@@ -293,6 +543,36 @@ export class TmsService {
       }
     }
     return Array.from(map.values());
+  }
+
+  private filterListByQuery(
+    list: Array<ReturnType<TmsService['mapRowToListItem']>>,
+    query: Record<string, string>,
+  ) {
+    const q = (k: string) => (query[k] ?? '').trim().toLowerCase();
+    return list.filter((item) => {
+      if (q('tms')) {
+        const needle = q('tms');
+        const idPart = String(item.id).replace(/^tms-/i, '').toLowerCase();
+        if (!String(item.id).toLowerCase().includes(needle) && !idPart.includes(needle)) {
+          return false;
+        }
+      }
+      if (q('wms') && !(item.wms ?? '').toLowerCase().includes(q('wms'))) return false;
+      if (q('date')) {
+        const d = q('date');
+        const idate = (item.date ?? '').slice(0, 10).toLowerCase();
+        if (!idate.includes(d) && (item.date ?? '').toLowerCase() !== d) return false;
+      }
+      if (q('site') && !(item.site ?? '').toLowerCase().includes(q('site'))) return false;
+      if (q('truck') && !(item.truck ?? '').toLowerCase().includes(q('truck'))) return false;
+      if (q('driver') && !(item.driver ?? '').toLowerCase().includes(q('driver'))) return false;
+      if (q('dep') && !(item.dep ?? '').toLowerCase().includes(q('dep'))) return false;
+      if (q('prestation') && !(item.prestation ?? '').toLowerCase().includes(q('prestation'))) {
+        return false;
+      }
+      return true;
+    });
   }
 
   private normalizeUiDate(value: unknown) {
@@ -335,7 +615,7 @@ export class TmsService {
         'row.raw_json',
       ])
       .orderBy('row.id', 'DESC')
-      .limit(50)
+      .limit(this.listMaxRows())
       .getRawMany();
 
     return rawRows.map((raw) => ({
