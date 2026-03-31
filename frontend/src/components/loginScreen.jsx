@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 const VALID_CREDENTIALS = {
   'lumiere.logistique@gmail.com': { password: 'admin123', role: 'admin' },
@@ -6,6 +6,8 @@ const VALID_CREDENTIALS = {
 }
 
 export default function LoginScreen({ loginForm, setLoginForm, onLogin }) {
+  const [showPassword, setShowPassword] = useState(false)
+
   const handleLogin = () => {
     const cred = VALID_CREDENTIALS[loginForm.username]
     if (cred && loginForm.password === cred.password) {
@@ -77,14 +79,35 @@ export default function LoginScreen({ loginForm, setLoginForm, onLogin }) {
           </div>
 
           {/* Password */}
-          <input
-            type="password"
-            placeholder="Mot de passe"
-            value={loginForm.password}
-            onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-            style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', fontSize: '14px' }}
-          />
+          <div style={{ textAlign: 'left' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              MOT DE PASSE
+            </label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px', backgroundColor: '#fff' }}>
+              <span style={{ marginRight: '10px', color: '#94a3b8' }}>🔒</span>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Mot de passe"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                style={{ border: 'none', outline: 'none', fontSize: '14px', width: '100%', color: '#475569', background: 'transparent' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                title={showPassword ? 'Masquer' : 'Afficher'}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '0 2px', color: showPassword ? '#f97316' : '#94a3b8',
+                  fontSize: '16px', lineHeight: 1, flexShrink: 0,
+                  transition: 'color 0.15s',
+                }}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
 
           {/* Submit */}
           <button
