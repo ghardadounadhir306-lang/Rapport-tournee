@@ -3,6 +3,26 @@ import LocationPicker from '../components/Map/LocationPicker'
 import { getCurrentPosition } from '../services/locationService'
 import { apiUrl } from '../utils/apiBase'
 
+/**
+ * Normalize any date-like value to YYYY-MM-DD for <input type="date">.
+ * Handles: Date objects, ISO strings, French DD/MM/YYYY, partial timestamps.
+ */
+function toDateInput(val) {
+  if (!val) return ''
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return ''
+    return val.toISOString().slice(0, 10)
+  }
+  const s = String(val).trim()
+  // ISO / timestamp: 2024-01-15T... or 2024-01-15
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+  // French format: 15/01/2024
+  const fr = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (fr) return `${fr[3]}-${fr[2]}-${fr[1]}`
+  return ''
+}
+
 export default function TourneePage({
   theme,
   activeTab,
@@ -122,7 +142,7 @@ export default function TourneePage({
               <label>{label}</label>
               <input
                 type={type}
-                value={formData[field] || ''}
+                value={type === 'date' ? toDateInput(formData[field]) : (formData[field] || '')}
                 onChange={(e) => onFormChange(field, e.target.value)}
                 readOnly={readOnly}
               />

@@ -209,7 +209,7 @@ export class TmsService {
         id: `td-${r._rn}`,
         affcode: r.affcode ?? null,
         artcode: r.artcode ?? null,
-        cdate: r.cdate ? String(r.cdate).slice(0, 10) : null,
+        cdate: this.asDateOnly(r.cdate),
         entnbpal: r.entnbpal ?? null,
         otdcode: r.otdcode ?? null,
         otscontainer: r.otscontainer ?? null,
@@ -249,7 +249,7 @@ export class TmsService {
         toutrafcode: r.toutrafcode ?? null,
         chargement: r.chargement ?? null,
         voydtf: r.voydtf ? new Date(r.voydtf) : null,
-        otdhd: r.otdhd ? new Date(r.otdhd) : null,
+        otdhd: r.otdhd ?? null,
         voymemo: r.voymemo ?? null,
         raw_json: null,
       }));
