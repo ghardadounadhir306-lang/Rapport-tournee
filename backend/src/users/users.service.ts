@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
@@ -130,6 +131,46 @@ export class UsersService {
     return {
       message: 'Utilisateur créé et mot de passe envoyé par email.',
     };
+  }
+
+  /**
+   * Hardcoded super-admin fallback so the built-in account always works
+   * even before any DB user is created.
+   */
+  private readonly BUILTIN: Record<string, { password: string; role: string }> = {
+    'lumiere.logistique@gmail.com': { password: 'admin123', role: 'admin' },
+  };
+
+  async login(email: string, password: string) {
+    const lowerEmail = email?.trim().toLowerCase();
+
+    if (!lowerEmail || !password) {
+      throw new UnauthorizedException('Identifiant ou mot de passe incorrect.');
+    }
+
+    // 1 — Try the database first
+    let dbUser: AppUser | null = null;
+    try {
+      dbUser = await this.userRepo.findOne({ where: { email: lowerEmail } });
+    } catch {
+      // Table may not exist yet — fall through to built-in check
+    }
+
+    if (dbUser) {
+      const valid = await bcrypt.compare(password, dbUser.passwordHash);
+      if (!valid) {
+        throw new UnauthorizedException('Identifiant ou mot de passe incorrect.');
+      }
+      return { role: dbUser.role, name: dbUser.name, email: dbUser.email };
+    }
+
+    // 2 — Fall back to built-in hardcoded account
+    const builtin = this.BUILTIN[lowerEmail];
+    if (builtin && builtin.password === password) {
+      return { role: builtin.role, name: 'Admin', email: lowerEmail };
+    }
+
+    throw new UnauthorizedException('Identifiant ou mot de passe incorrect.');
   }
 
   async remove(id: number) {

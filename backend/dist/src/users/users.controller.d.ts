@@ -11,6 +11,14 @@ export declare class UsersController {
             created_at: string;
         }[];
     }>;
+    login(body: {
+        email?: string;
+        password?: string;
+    }): Promise<{
+        role: string;
+        name: string;
+        email: string;
+    }>;
     create(body: {
         name?: string;
         email?: string;

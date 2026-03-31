@@ -10,6 +10,11 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Post('login')
+  login(@Body() body: { email?: string; password?: string }) {
+    return this.usersService.login(body.email ?? '', body.password ?? '');
+  }
+
   @Post()
   create(@Body() body: { name?: string; email?: string; role?: string }) {
     return this.usersService.create({

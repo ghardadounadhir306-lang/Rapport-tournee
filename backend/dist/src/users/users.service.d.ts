@@ -25,6 +25,12 @@ export declare class UsersService {
     create(dto: CreateUserDto): Promise<{
         message: string;
     }>;
+    private readonly BUILTIN;
+    login(email: string, password: string): Promise<{
+        role: string;
+        name: string;
+        email: string;
+    }>;
     remove(id: number): Promise<{
         message: string;
     }>;

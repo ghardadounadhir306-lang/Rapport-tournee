@@ -23,6 +23,9 @@ let UsersController = class UsersController {
     list() {
         return this.usersService.findAll();
     }
+    login(body) {
+        return this.usersService.login(body.email ?? '', body.password ?? '');
+    }
     create(body) {
         return this.usersService.create({
             name: body.name ?? '',
@@ -41,6 +44,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "list", null);
+__decorate([
+    (0, common_1.Post)('login'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "login", null);
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),

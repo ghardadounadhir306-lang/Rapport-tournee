@@ -1,19 +1,34 @@
 import React, { useState } from 'react'
-
-const VALID_CREDENTIALS = {
-  'lumiere.logistique@gmail.com': { password: 'admin123', role: 'admin' },
-  
-}
+import { apiUrl } from '../utils/apiBase'
 
 export default function LoginScreen({ loginForm, setLoginForm, onLogin }) {
   const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading]           = useState(false)
+  const [error, setError]               = useState(null)
 
-  const handleLogin = () => {
-    const cred = VALID_CREDENTIALS[loginForm.username]
-    if (cred && loginForm.password === cred.password) {
-      onLogin(cred.role)
-    } else {
-      alert('Identifiant ou mot de passe incorrect.')
+  const handleLogin = async () => {
+    if (!loginForm.username || !loginForm.password) {
+      setError('Veuillez remplir tous les champs.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res  = await fetch(apiUrl('/api/users/login'), {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: loginForm.username, password: loginForm.password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data?.message ?? 'Identifiant ou mot de passe incorrect.')
+        return
+      }
+      onLogin(data.role)
+    } catch {
+      setError('Impossible de joindre le serveur. Vérifiez votre connexion.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -37,29 +52,18 @@ export default function LoginScreen({ loginForm, setLoginForm, onLogin }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          {/* Role quick-select */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-            {[
-              { label: 'ADMIN', icon: '🔐', email: 'lumiere.logistique@gmail.com' },
-              { label: 'USER',  icon: '👤', email: ''  },
-            ].map(({ label, icon, email }) => (
-              <button
-                key={label}
-                onClick={() => setLoginForm({ ...loginForm, username: email })}
-                style={{
-                  padding: '10px', borderRadius: '8px', cursor: 'pointer',
-                  border: `2px solid ${loginForm.username === email ? '#f97316' : '#e5e7eb'}`,
-                  backgroundColor: loginForm.username === email ? '#fff7ed' : 'white',
-                  color: loginForm.username === email ? '#f97316' : '#64748b',
-                  fontWeight: '700',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px'
-                }}
-              >
-                <span style={{ fontSize: '20px' }}>{icon}</span>
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* Error banner */}
+          {error && (
+            <div style={{
+              padding: '10px 14px', borderRadius: '8px',
+              backgroundColor: '#fef2f2', border: '1px solid #fca5a5',
+              color: '#991b1b', fontSize: '13px', fontWeight: '600',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>❌ {error}</span>
+              <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991b1b', fontSize: '16px' }}>×</button>
+            </div>
+          )}
 
           {/* Username */}
           <div style={{ textAlign: 'left' }}>
@@ -112,13 +116,17 @@ export default function LoginScreen({ loginForm, setLoginForm, onLogin }) {
           {/* Submit */}
           <button
             onClick={handleLogin}
+            disabled={loading}
             style={{
-              backgroundColor: '#f97316', color: 'white', padding: '12px',
-              borderRadius: '8px', border: 'none', fontWeight: '700', cursor: 'pointer',
-              marginTop: '10px', boxShadow: '0 4px 6px -1px rgba(249,115,22,0.2)'
+              backgroundColor: loading ? '#fed7aa' : '#f97316',
+              color: 'white', padding: '12px',
+              borderRadius: '8px', border: 'none', fontWeight: '700',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              marginTop: '10px', boxShadow: '0 4px 6px -1px rgba(249,115,22,0.2)',
+              transition: 'background-color 0.2s',
             }}
           >
-            SE CONNECTER
+            {loading ? '⏳ Vérification...' : 'SE CONNECTER'}
           </button>
         </div>
       </div>
