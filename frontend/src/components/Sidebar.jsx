@@ -1,22 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { FixedSizeList } from 'react-window'
 
-// ─── Column definitions ──────────────────────────────────────────────────────
-// gridCol: valid CSS grid track value
+// ─── Column definitions ───────────────────────────────────────────────────────
+// gridCol uses minmax so every column grows proportionally with the sidebar width
 const COLUMNS = [
-  { label: 'N° WMS',      sub: 'OTSNUMBDX',     gridCol: '100px', key: 'wms'       },
-  { label: 'N° TMS',      sub: 'OTDCODE',        gridCol: '115px', key: 'tms'       },
-  { label: 'DATE',        sub: 'CDATE',          gridCol: '82px',  key: 'date'      },
-  { label: 'SITE',        sub: 'SITCODE',        gridCol: '52px',  key: 'site'      },
-  { label: 'CAMION',      sub: 'VOYCLE',         gridCol: '80px',  key: 'truck'     },
-  { label: 'CHAUFFEUR',   sub: 'SALNOM',         gridCol: '95px',  key: 'driver'    },
-  { label: 'DEP',         sub: 'TOUTRAFCODE',    gridCol: '50px',  key: 'dep'       },
-  { label: 'PRESTATION',  sub: 'PLALIB/ARTCODE', gridCol: '1fr',   key: 'prestation'},
+  { label: 'N° WMS',     sub: 'OTSNUMBDX',     gridCol: 'minmax(80px,  1.2fr)', key: 'wms'        },
+  { label: 'N° TMS',     sub: 'OTDCODE',        gridCol: 'minmax(90px,  1.5fr)', key: 'tms'        },
+  { label: 'DATE',       sub: 'CDATE',          gridCol: 'minmax(72px,  1fr)',   key: 'date'       },
+  { label: 'SITE',       sub: 'SITCODE',        gridCol: 'minmax(42px,  0.5fr)', key: 'site'       },
+  { label: 'CAMION',     sub: 'VOYCLE',         gridCol: 'minmax(62px,  1fr)',   key: 'truck'      },
+  { label: 'CHAUFFEUR',  sub: 'SALNOM',         gridCol: 'minmax(72px,  1.2fr)', key: 'driver'     },
+  { label: 'DEP',        sub: 'TOUTRAFCODE',    gridCol: 'minmax(38px,  0.5fr)', key: 'dep'        },
+  { label: 'PRESTATION', sub: 'PLALIB/ARTCODE', gridCol: 'minmax(80px,  1.5fr)', key: 'prestation' },
 ]
 
 const GRID_TEMPLATE = COLUMNS.map((c) => c.gridCol).join(' ')
 const ROW_H = 32
-const MIN_SIDEBAR_W = 680
 
 // ─── Single virtual row ───────────────────────────────────────────────────────
 const VRow = React.memo(function VRow({ index, style, data }) {
@@ -97,6 +96,7 @@ export default function Sidebar({
   const containerRef = useRef(null)
   const [listSize, setListSize] = useState({ height: 400, width: 800 })
 
+  // Track available height & width for FixedSizeList
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -118,12 +118,14 @@ export default function Sidebar({
     listRef.current?.scrollTo(0)
   }, [setTmsFilters])
 
+  // Decide filter grid columns: 4 when wide, 2 when narrow
+  const filterCols = sidebarWidth >= 560 ? 4 : 2
+
   return (
     <aside
       className="sidebar"
       style={{
         width: `${sidebarWidth}px`,
-        minWidth: `${Math.max(sidebarWidth, 320)}px`,
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
@@ -132,37 +134,46 @@ export default function Sidebar({
         background: '#fff',
         borderRight: '2px solid #e2e8f0',
         boxSizing: 'border-box',
+        minWidth: '220px',
       }}
     >
       {/* Resize handle */}
       <div className="sidebar-resizer" onMouseDown={onResizeStart} />
 
-      {/* ── Top header ─────────────────────────────────────────────────── */}
+      {/* ── Top header — 100 % of sidebar width ────────────────────────── */}
       <div style={{
         flexShrink: 0,
+        width: '100%',
+        boxSizing: 'border-box',
         background: 'linear-gradient(135deg, #1e2126 0%, #2a2e35 100%)',
         padding: '10px 14px 8px',
-        minWidth: `${MIN_SIDEBAR_W}px`,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        {/* Title + count */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '3px', height: '18px', background: '#f97316', borderRadius: '2px' }} />
-            <span style={{ fontSize: '12px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-              Tournées Disponibles
+            <div style={{ width: '3px', height: '18px', background: '#f97316', borderRadius: '2px', flexShrink: 0 }} />
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>
+              Tournées
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '10px', color: '#94a3b8' }}>affiché</span>
-            <span style={{ fontSize: '12px', fontWeight: 800, color: '#f97316', background: 'rgba(249,115,22,0.15)', padding: '2px 10px', borderRadius: '999px', border: '1px solid rgba(249,115,22,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#f97316', background: 'rgba(249,115,22,0.15)', padding: '2px 10px', borderRadius: '999px', border: '1px solid rgba(249,115,22,0.3)', whiteSpace: 'nowrap' }}>
               {filteredList.length.toLocaleString()}
             </span>
             <span style={{ fontSize: '10px', color: '#64748b' }}>/</span>
-            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{list.length.toLocaleString()}</span>
+            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>{list.length.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Filter grid — 4 per row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginBottom: '6px' }}>
+        {/* Filter inputs — adapts columns to sidebar width */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${filterCols}, 1fr)`,
+          gap: '4px',
+          marginBottom: '6px',
+          width: '100%',
+          boxSizing: 'border-box',
+        }}>
           {COLUMNS.map(({ key, label }) => (
             <input
               key={key}
@@ -172,7 +183,7 @@ export default function Sidebar({
               onChange={(e) => onFilterChange(key, e.target.value)}
               style={{
                 fontSize: '11px',
-                padding: '5px 8px',
+                padding: '5px 7px',
                 borderRadius: '4px',
                 border: tmsFilters[key] ? '1px solid #f97316' : '1px solid #363b45',
                 background: tmsFilters[key] ? '#fff7ed' : '#1a1d21',
@@ -188,7 +199,7 @@ export default function Sidebar({
           ))}
         </div>
 
-        {/* Active filter chips */}
+        {/* Active chips */}
         {activeFilterChips.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
             {activeFilterChips.map((chip) => (
@@ -209,14 +220,16 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* ── Column header ──────────────────────────────────────────────── */}
+      {/* ── Column header — stretches to full sidebar width ─────────────── */}
       <div style={{
         flexShrink: 0,
+        width: '100%',
+        boxSizing: 'border-box',
         display: 'grid',
         gridTemplateColumns: GRID_TEMPLATE,
         background: '#c5b099',
         borderBottom: '2px solid #a89070',
-        minWidth: `${MIN_SIDEBAR_W}px`,
+        overflowX: 'hidden',
       }}>
         {COLUMNS.map((col, i) => (
           <div
@@ -225,6 +238,7 @@ export default function Sidebar({
               padding: '6px 6px 5px',
               borderRight: i < COLUMNS.length - 1 ? '1px solid rgba(0,0,0,0.12)' : 'none',
               overflow: 'hidden',
+              minWidth: 0,
             }}
           >
             <div style={{ fontSize: '10px', fontWeight: 800, color: '#1f2937', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -237,28 +251,19 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* ── Virtual list ───────────────────────────────────────────────── */}
+      {/* ── Virtual list — fills remaining height, full width ──────────── */}
       <div
         ref={containerRef}
         style={{
           flex: 1,
           minHeight: 0,
-          minWidth: `${MIN_SIDEBAR_W}px`,
+          width: '100%',
           background: '#fff',
-          overflowX: 'hidden',
-          overflowY: 'hidden',
+          overflow: 'hidden',
         }}
       >
         {filteredList.length === 0 ? (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            gap: '8px',
-            color: '#94a3b8',
-          }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '8px', color: '#94a3b8' }}>
             <div style={{ fontSize: '28px' }}>🔍</div>
             <div style={{ fontSize: '13px', fontStyle: 'italic' }}>Aucune tournée trouvée</div>
           </div>
@@ -280,21 +285,22 @@ export default function Sidebar({
       {/* ── Footer ─────────────────────────────────────────────────────── */}
       <div style={{
         flexShrink: 0,
+        width: '100%',
+        boxSizing: 'border-box',
         background: '#f8fafc',
         borderTop: '1px solid #e2e8f0',
         padding: '4px 12px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        minWidth: `${MIN_SIDEBAR_W}px`,
       }}>
-        <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+        <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
           {filteredList.length < list.length
             ? `${filteredList.length.toLocaleString()} résultat(s) filtré(s)`
             : `${list.length.toLocaleString()} tournée(s) au total`}
         </span>
         {selectedTmsId && (
-          <span style={{ fontSize: '10px', color: '#f97316', fontWeight: 700 }}>
+          <span style={{ fontSize: '10px', color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}>
             ● sélectionné
           </span>
         )}
