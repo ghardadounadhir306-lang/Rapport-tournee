@@ -1,0 +1,250 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "interval": 5
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-1234-5678-abcd-1234567890ab",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(MAX(last_change_id), 0) as checkpoint_id FROM sync_state WHERE job_name = 'tms_sync';",
+        "options": {}
+      },
+      "id": "b2c3d4e5-2345-6789-bcde-2345678901bc",
+      "name": "Get Checkpoint",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        420,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_TARGET_POSTGRES_CREDENTIALS",
+          "name": "Postgres (Target Project)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ 'SELECT change_id, operation, row_data FROM transport_data_change_log WHERE change_id > ' + ($json.checkpoint_id || 0) + ' ORDER BY change_id ASC LIMIT 500;' }}",
+        "options": {}
+      },
+      "id": "c3d4e5f6-3456-7890-cdef-3456789012cd",
+      "name": "Fetch TMS Changes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_SOURCE_TMS_CREDENTIALS",
+          "name": "Postgres (TMS Source)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $input.all().length > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "d4e5f6g7-4567-8901-def0-4567890123de",
+      "name": "IF Data Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ 'INSERT INTO tms_transport_change_inbox (source_change_id, source_transport_id, operation, changed_at, row_data) VALUES (' + Number($json.change_id || 0) + ', ' + Number($json.row_data?.source_transport_id || $json.row_data?.voycle || $json.row_data?.voypal || 0) + ', $$' + String($json.operation || 'I').substring(0,1) + '$$, $$' + String($json.row_data?.updated_at || new Date().toISOString()) + '$$, $$' + JSON.stringify($json.row_data || {}) + '$$::jsonb) ON CONFLICT (source_change_id) DO NOTHING;' }}",
+        "options": {}
+      },
+      "id": "e5f6g7h8-5678-9012-ef01-5678901234ef",
+      "name": "Insert Inbox",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1100,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_TARGET_POSTGRES_CREDENTIALS",
+          "name": "Postgres (Target Project)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH processed AS (SELECT fn_process_tms_inbox_batch(500) AS processed_count), checkpoint AS (SELECT COALESCE(MAX(source_change_id), 0) AS max_change_id FROM tms_transport_change_inbox WHERE COALESCE(status, 'pending') = 'applied'), upsert_state AS (INSERT INTO sync_state (job_name, last_change_id, last_run_at) SELECT 'tms_sync', checkpoint.max_change_id, NOW() FROM checkpoint ON CONFLICT (job_name) DO UPDATE SET last_change_id = GREATEST(sync_state.last_change_id, EXCLUDED.last_change_id), last_run_at = NOW() RETURNING last_change_id) SELECT processed.processed_count, checkpoint.max_change_id AS checkpoint_id, (SELECT COUNT(*) FROM tms_transport_change_inbox WHERE COALESCE(status, 'pending') = 'pending') AS pending_inbox, (SELECT last_change_id FROM upsert_state) AS saved_checkpoint FROM processed, checkpoint;",
+        "options": {}
+      },
+      "id": "f6g7h8i9-6789-0123-f012-6789012345f0",
+      "name": "Process Batch",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1320,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_TARGET_POSTGRES_CREDENTIALS",
+          "name": "Postgres (Target Project)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ Number($json.pending_inbox || 0) > 1000 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "g7h8i9j0-7890-1234-a123-7890123456a1",
+      "name": "IF Pending Inbox High",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0f8ea179-2fd2-4f3f-b0fb-056ca535f4a2",
+              "name": "warning",
+              "value": "={{ 'ALERT: pending_inbox is high (' + $json.pending_inbox + '). Please investigate inbox processing.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "h8i9j0k1-8901-2345-b234-8901234567b2",
+      "name": "Backlog Warning",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Checkpoint": {
+      "main": [
+        [
+          {
+            "node": "Fetch TMS Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch TMS Changes": {
+      "main": [
+        [
+          {
+            "node": "IF Data Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Data Exists": {
+      "main": [
+        [
+          {
+            "node": "Insert Inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Inbox": {
+      "main": [
+        [
+          {
+            "node": "Process Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Batch": {
+      "main": [
+        [
+          {
+            "node": "IF Pending Inbox High",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Pending Inbox High": {
+      "main": [
+        [
+          {
+            "node": "Backlog Warning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

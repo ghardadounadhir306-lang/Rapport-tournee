@@ -2,20 +2,21 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { FixedSizeList } from 'react-window'
 
 // ─── Column definitions ───────────────────────────────────────────────────────
-// gridCol uses minmax so every column grows proportionally with the sidebar width
 const COLUMNS = [
-  { label: 'N° WMS',     sub: 'OTSNUMBDX',     gridCol: 'minmax(80px,  1.2fr)', key: 'wms'        },
-  { label: 'N° TMS',     sub: 'OTDCODE',        gridCol: 'minmax(90px,  1.5fr)', key: 'tms'        },
-  { label: 'DATE',       sub: 'CDATE',          gridCol: 'minmax(72px,  1fr)',   key: 'date'       },
-  { label: 'SITE',       sub: 'SITCODE',        gridCol: 'minmax(42px,  0.5fr)', key: 'site'       },
-  { label: 'CAMION',     sub: 'VOYCLE',         gridCol: 'minmax(62px,  1fr)',   key: 'truck'      },
-  { label: 'CHAUFFEUR',  sub: 'SALNOM',         gridCol: 'minmax(72px,  1.2fr)', key: 'driver'     },
-  { label: 'DEP',        sub: 'TOUTRAFCODE',    gridCol: 'minmax(38px,  0.5fr)', key: 'dep'        },
-  { label: 'PRESTATION', sub: 'PLALIB/ARTCODE', gridCol: 'minmax(80px,  1.5fr)', key: 'prestation' },
+  { label: 'N° WMS',     sub: '0',             gridCol: 'minmax(80px,  1.2fr)', key: 'wms'        },
+  { label: 'N° TMS',     sub: 'VOYCLE',        gridCol: 'minmax(90px,  1.5fr)', key: 'tms'        },
+  { label: 'DATE',       sub: 'CDATE',         gridCol: 'minmax(72px,  1fr)',   key: 'date'       },
+  { label: 'SITE',       sub: 'SITCODE',       gridCol: 'minmax(42px,  0.5fr)', key: 'site'       },
+  { label: 'CAMION',     sub: 'PLAMOTI',       gridCol: 'minmax(62px,  1fr)',   key: 'truck'      },
+  { label: 'CHAUFFEUR',  sub: 'SALNOM',        gridCol: 'minmax(72px,  1.2fr)', key: 'driver'     },
+  { label: 'DEP',        sub: 'TIECODE',       gridCol: 'minmax(38px,  0.5fr)', key: 'dep'        },
+  { label: 'PRESTATION', sub: 'SAISIE',        gridCol: 'minmax(80px,  1.5fr)', key: 'prestation' },
 ]
 
 const GRID_TEMPLATE = COLUMNS.map((c) => c.gridCol).join(' ')
 const ROW_H = 32
+/** N° TMS — orange charte */
+const TMS_ORANGE = '#E8600A'
 
 // ─── Single virtual row ───────────────────────────────────────────────────────
 const VRow = React.memo(function VRow({ index, style, data }) {
@@ -60,7 +61,7 @@ const VRow = React.memo(function VRow({ index, style, data }) {
           style={{
             padding: '0 6px',
             fontSize: '11px',
-            color: ci === 1 ? '#c2410c' : '#374151',
+            color: ci === 1 ? TMS_ORANGE : '#374151',
             fontWeight: ci === 1 ? 700 : 'inherit',
             overflow: 'hidden',
             whiteSpace: 'nowrap',
@@ -96,7 +97,6 @@ export default function Sidebar({
   const containerRef = useRef(null)
   const [listSize, setListSize] = useState({ height: 400, width: 800 })
 
-  // Track available height & width for FixedSizeList
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -118,7 +118,6 @@ export default function Sidebar({
     listRef.current?.scrollTo(0)
   }, [setTmsFilters])
 
-  // Decide filter grid columns: 4 when wide, 2 when narrow
   const filterCols = sidebarWidth >= 560 ? 4 : 2
 
   return (
@@ -137,10 +136,8 @@ export default function Sidebar({
         minWidth: '220px',
       }}
     >
-      {/* Resize handle */}
       <div className="sidebar-resizer" onMouseDown={onResizeStart} />
 
-      {/* ── Top header — 100 % of sidebar width ────────────────────────── */}
       <div style={{
         flexShrink: 0,
         width: '100%',
@@ -148,7 +145,6 @@ export default function Sidebar({
         background: 'linear-gradient(135deg, #1e2126 0%, #2a2e35 100%)',
         padding: '10px 14px 8px',
       }}>
-        {/* Title + count */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '3px', height: '18px', background: '#f97316', borderRadius: '2px', flexShrink: 0 }} />
@@ -165,7 +161,6 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Filter inputs — adapts columns to sidebar width */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${filterCols}, 1fr)`,
@@ -199,7 +194,6 @@ export default function Sidebar({
           ))}
         </div>
 
-        {/* Active chips */}
         {activeFilterChips.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
             {activeFilterChips.map((chip) => (
@@ -220,7 +214,6 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* ── Column header — stretches to full sidebar width ─────────────── */}
       <div style={{
         flexShrink: 0,
         width: '100%',
@@ -251,7 +244,6 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* ── Virtual list — fills remaining height, full width ──────────── */}
       <div
         ref={containerRef}
         style={{
@@ -282,7 +274,6 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* ── Footer ─────────────────────────────────────────────────────── */}
       <div style={{
         flexShrink: 0,
         width: '100%',

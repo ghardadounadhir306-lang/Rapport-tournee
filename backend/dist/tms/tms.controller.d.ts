@@ -1,0 +1,175 @@
+import type { Request } from 'express';
+import { TmsService } from './tms.service';
+export declare class TmsController {
+    private readonly tmsService;
+    constructor(tmsService: TmsService);
+    getTmsData(query: Record<string, string>): Promise<{
+        entriesCount: number;
+        rowsCount: number;
+        list: {
+            id: string;
+            tms: string | null;
+            wms: string;
+            date: string | null;
+            site: string | null;
+            truck: string | null;
+            driver: string;
+            otdcode: string | null;
+            dep: string | null;
+            prestation: null;
+            source: "transport_data" | "tms_import_rows" | null;
+            active: boolean;
+        }[];
+        active: null;
+    }>;
+    getFormData(id: string): Promise<{
+        id: string;
+        tms_id: string | null;
+        table_rows: any;
+        tableRows: any;
+        input_data: {
+            date: string | null;
+            wms: string | null;
+            prestation: string | null;
+            truck: string | null;
+            driver: string | null;
+            dep: string | null;
+            kmFacture: string | null;
+            marchandise: any;
+            conformite: string | null;
+            observation: string | null;
+            hDepart: any;
+            kmDepart: any;
+            hRetour: any;
+            kmRetour: any;
+            kmDernierClient: any;
+            kmMoy: string;
+            totalPalettes: any;
+            totalPalettes2: string | null;
+            tourneeSec: string | null;
+            apresMidi: boolean;
+            interSite: boolean;
+            gpsStartLat: string;
+            gpsStartLng: string;
+            gpsEndLat: string;
+            gpsEndLng: string;
+            gpsStartLabel: string;
+            gpsEndLabel: string;
+            prestationId: string | null;
+            siteId: string | null;
+            autoFilledFromMobile: string[];
+        };
+        formData: {
+            date: string | null;
+            wms: string | null;
+            prestation: string | null;
+            truck: string | null;
+            driver: string | null;
+            dep: string | null;
+            kmFacture: string | null;
+            marchandise: any;
+            conformite: string | null;
+            observation: string | null;
+            hDepart: any;
+            kmDepart: any;
+            hRetour: any;
+            kmRetour: any;
+            kmDernierClient: any;
+            kmMoy: string;
+            totalPalettes: any;
+            totalPalettes2: string | null;
+            tourneeSec: string | null;
+            apresMidi: boolean;
+            interSite: boolean;
+            gpsStartLat: string;
+            gpsStartLng: string;
+            gpsEndLat: string;
+            gpsEndLng: string;
+            gpsStartLabel: string;
+            gpsEndLabel: string;
+            prestationId: string | null;
+            siteId: string | null;
+            autoFilledFromMobile: string[];
+        };
+    }>;
+    getTransportData(limit?: string): Promise<{
+        count: number;
+        rows: any[];
+    }>;
+    getTransportRowsByTournee(tourneeId: string): Promise<{
+        tourneeId: string;
+        key: string;
+        count: number;
+        rows: Record<string, unknown>[];
+        tableRows: {
+            id: number;
+            client: string;
+            dep: string;
+            um: string;
+            pal: string;
+            arrivee: string;
+            depart: string;
+            kmArv: string;
+            taxe: string;
+            livree: boolean;
+            kmTh: string;
+            region: string;
+        }[];
+    }>;
+    getOptimisationData(): Promise<{
+        stats: {
+            total: number;
+            analyzed: number;
+            pctKm: number;
+            pctTemps: number;
+            conformeKmCount: number;
+            conformeTCount: number;
+            totalWithKm: number;
+            totalWithTemps: number;
+            totalKmReel: number;
+            totalKmTh: number;
+            totalDureeReelle: number;
+        };
+        rows: {
+            id: string;
+            tmsId: string | null;
+            date: any;
+            wms: any;
+            truck: any;
+            driver: any;
+            prestation: string;
+            site: any;
+            kmReel: number | null;
+            kmTheorique: any;
+            decalageKm: number | null;
+            decalageKmPct: number | null;
+            conformiteKm: boolean | null;
+            hDepart: string;
+            hRetour: string;
+            dureeReelle: number | null;
+            dureeEstimee: number | null;
+            decalageTemps: number | null;
+            decalageTPct: number | null;
+            conformiteTemps: boolean | null;
+            clients: {
+                code: any;
+                livree: any;
+                kmArv: any;
+                kmTh: any;
+                arrivee: any;
+                depart: any;
+                region: any;
+            }[];
+            nbClients: number;
+            updatedAt: Date;
+        }[];
+    }>;
+    saveFormData(id: string, body: any, req: Request): Promise<import("./entities/tms-form-data.entity").TmsFormData>;
+    importTmsExcel(file: {
+        buffer: Buffer;
+    } | undefined, req: Request): Promise<{
+        sheetName: string;
+        rowsDetected: number;
+        inserted: number;
+    }>;
+}

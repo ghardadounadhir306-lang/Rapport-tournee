@@ -4,6 +4,10 @@ import { DataSource } from 'typeorm';
 import { TmsService } from './tms.service';
 import { TmsImportRow } from './entities/tms-import-row.entity';
 import { TmsFormData } from './entities/tms-form-data.entity';
+import { ActivityLogService } from '../activity/activity-log.service';
+import { AnomalyEvaluationService } from '../anomalies/anomaly-evaluation.service';
+import { ClientsPoiService } from '../clients-poi/clients-poi.service';
+import { TourLegKmHistoryService } from './tour-leg-km-history.service';
 
 const mockRepo = () => ({
   count: jest.fn().mockResolvedValue(0),
@@ -43,6 +47,22 @@ describe('TmsService', () => {
         {
           provide: DataSource,
           useValue: mockDataSource,
+        },
+        {
+          provide: ActivityLogService,
+          useValue: { log: jest.fn().mockResolvedValue(undefined), findRecent: jest.fn() },
+        },
+        {
+          provide: AnomalyEvaluationService,
+          useValue: { evaluateAfterSave: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: ClientsPoiService,
+          useValue: { theoreticalKmLegsAlongTour: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: TourLegKmHistoryService,
+          useValue: { getAverage: jest.fn().mockResolvedValue(null), recordSamples: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

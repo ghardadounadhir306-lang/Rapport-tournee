@@ -91,7 +91,6 @@ CREATE TABLE tms_import_rows (
   voycle VARCHAR(128) NULL,
   voydtd DATETIME(3) NULL,
   voyhrd VARCHAR(32) NULL,
-  voyhrf VARCHAR(32) NULL,
   voypal INT NULL,
   performance_camion DECIMAL(10,4) NULL,
   performance_chauffeur DECIMAL(10,4) NULL,

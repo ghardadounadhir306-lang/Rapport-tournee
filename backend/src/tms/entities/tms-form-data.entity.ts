@@ -26,6 +26,14 @@ export class TmsFormData {
   @Column({ type: 'varchar', length: 255, nullable: true })
   dep!: string | null;
 
+  /** Stable prestation identifier (for duplication rules vs free-text prestation). */
+  @Column({ name: 'prestation_id', type: 'varchar', length: 255, nullable: true })
+  prestationId!: string | null;
+
+  /** Site identifier (e.g. warehouse / depot code). */
+  @Column({ name: 'site_id', type: 'varchar', length: 255, nullable: true })
+  siteId!: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   km_facture!: string | null;
 

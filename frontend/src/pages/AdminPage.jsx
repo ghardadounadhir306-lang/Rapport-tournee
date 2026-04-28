@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { apiUrl } from '../utils/apiBase'
 
+const PAGE_OPTIONS = [
+  { key: 'TOURNEES', label: '🚚 Tournées' },
+  { key: 'DASHBOARD', label: '📊 Dashboard' },
+  { key: 'CONFRONTATION', label: '⚖️ Confrontation' },
+  { key: 'SIMULATEUR', label: '💰 Simulateur' },
+  { key: 'PARAMETRAGE', label: '🎛️ Paramétrage' },
+  { key: 'OPTIMISATION', label: '📈 Optimisation' },
+  { key: 'ADMIN', label: '⚙️ Admin' },
+  { key: 'SUPER_ADMIN_TRIPS', label: '👑 super admin' },
+]
+
+const ALL_PAGE_KEYS = PAGE_OPTIONS.map((page) => page.key)
+
 function errorMessage(data) {
   if (!data || typeof data !== 'object') return 'Erreur'
   if (typeof data.message === 'string') return data.message
@@ -9,12 +22,34 @@ function errorMessage(data) {
   return 'Erreur'
 }
 
+const ACTION_LABELS = {
+  USER_LOGIN: 'Connexion',
+  USER_LOGIN_FAILED: 'Échec connexion',
+  USER_CREATE: 'Création utilisateur',
+  USER_DELETE: 'Suppression utilisateur',
+  FORM_SAVE: 'Enregistrement formulaire tournée',
+  TMS_EXCEL_IMPORT: 'Import Excel TMS',
+}
+
 export default function AdminPage() {
   const [users, setUsers]       = useState([])
   const [loading, setLoading]   = useState(false)
   const [sending, setSending]   = useState(false)
   const [message, setMessage]   = useState(null) // { type: 'success'|'error', text }
-  const [form, setForm]         = useState({ name: '', email: '', role: 'user', matricule: '' })
+  const [activityLogs, setActivityLogs] = useState([])
+  const [activityTotal, setActivityTotal] = useState(0)
+  const [activityLoading, setActivityLoading] = useState(false)
+  /** Set when /api/activity-logs fails (réseau, table manquante, 500…). Null = dernière requête OK. */
+  const [activityLogError, setActivityLogError] = useState(null)
+  const [form, setForm]         = useState({
+    name: '',
+    email: '',
+    role: 'user',
+    matricule: '',
+    allowedPages: ['TOURNEES', 'DASHBOARD'],
+  })
+  const [logPage, setLogPage] = useState(1)
+  const logsPerPage = 10
 
   // ── Load users ──────────────────────────────────────────────
   const loadUsers = async () => {
@@ -30,7 +65,38 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { loadUsers() }, [])
+  const loadActivityLogs = async () => {
+    setActivityLoading(true)
+    setActivityLogError(null)
+    try {
+      const res = await fetch(apiUrl('/api/activity-logs?limit=150'))
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error(
+            'Route introuvable (404). Le processus Node sur le port du backend est probablement une ancienne version : arrêtez-le, puis dans le dossier backend exécutez npm run build et npm run start:dev.',
+          )
+        }
+        throw new Error(errorMessage(data))
+      }
+      if (!Array.isArray(data.logs)) {
+        throw new Error('Réponse API invalide')
+      }
+      setActivityLogs(data.logs)
+      setActivityTotal(typeof data.total === 'number' ? data.total : data.logs.length)
+    } catch (e) {
+      setActivityLogs([])
+      setActivityTotal(0)
+      setActivityLogError(e?.message || 'Erreur chargement du journal')
+    } finally {
+      setActivityLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+    loadActivityLogs()
+  }, [])
 
   // ── Create user ─────────────────────────────────────────────
   const handleCreate = async () => {
@@ -49,12 +115,19 @@ export default function AdminPage() {
           email:     form.email,
           role:      form.role,
           matricule: form.matricule || undefined,
+          allowedPages: form.allowedPages,
         }),
       })
       const data = await res.json()
         if (res.ok) {
         setMessage({ type: 'success', text: data.message })
-        setForm({ name: '', email: '', role: 'user', matricule: '' })
+        setForm({
+          name: '',
+          email: '',
+          role: 'user',
+          matricule: '',
+          allowedPages: ['TOURNEES', 'DASHBOARD'],
+        })
         loadUsers()
       } else {
         setMessage({ type: 'error', text: errorMessage(data) })
@@ -156,11 +229,22 @@ export default function AdminPage() {
               <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>Rôle</label>
               <select
                 value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                onChange={(e) => {
+                  const role = e.target.value
+                  setForm((prev) => ({
+                    ...prev,
+                    role,
+                    allowedPages:
+                        role === 'super_admin'
+                          ? [...ALL_PAGE_KEYS]
+                          : prev.allowedPages.filter((p) => p !== 'SUPER_ADMIN_TRIPS'),
+                  }))
+                }}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', background: '#fff' }}
               >
                 <option value="user">👤 User</option>
                 <option value="admin">🔐 Admin</option>
+                <option value="super_admin">👑 super admin</option>
               </select>
             </div>
 
@@ -177,6 +261,52 @@ export default function AdminPage() {
             >
               {sending ? '⏳ Envoi...' : '📧 CRÉER & ENVOYER'}
             </button>
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
+              Pages autorisées
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {PAGE_OPTIONS.map((page) => {
+                const disabled = form.role !== 'super_admin' && page.key === 'SUPER_ADMIN_TRIPS'
+                const checked = form.allowedPages.includes(page.key)
+                return (
+                  <label
+                    key={page.key}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 10px',
+                      borderRadius: '999px',
+                      border: '1px solid #e5e7eb',
+                      background: checked ? '#fff7ed' : '#fff',
+                      color: checked ? '#c2410c' : '#475569',
+                      fontSize: '12px',
+                      opacity: disabled ? 0.45 : 1,
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={disabled}
+                      checked={checked}
+                      onChange={(e) => {
+                        const isOn = e.target.checked
+                        setForm((prev) => {
+                          const set = new Set(prev.allowedPages)
+                          if (isOn) set.add(page.key)
+                          else set.delete(page.key)
+                          if (prev.role !== 'super_admin') set.delete('SUPER_ADMIN_TRIPS')
+                          return { ...prev, allowedPages: Array.from(set) }
+                        })
+                      }}
+                    />
+                    {page.label}
+                  </label>
+                )
+              })}
+            </div>
           </div>
           <p style={{ margin: '12px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
             * Un mot de passe aléatoire sera généré et envoyé automatiquement par email (matricule optionnel)
@@ -197,7 +327,7 @@ export default function AdminPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f1f5f9' }}>
-                  {['Nom', 'Email', 'Matricule', 'Rôle', 'Créé le', ''].map(h => (
+                  {['Nom', 'Email', 'Matricule', 'Pages', 'Rôle', 'Créé le', ''].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e5e7eb' }}>{h}</th>
                   ))}
                 </tr>
@@ -210,13 +340,18 @@ export default function AdminPage() {
                     <td style={{ padding: '12px 14px', color: '#64748b', fontFamily: 'monospace', fontSize: '12px' }}>
                       {user.matricule || <span style={{ color: '#d1d5db' }}>—</span>}
                     </td>
+                    <td style={{ padding: '12px 14px', color: '#64748b', fontSize: '11px' }}>
+                      {Array.isArray(user.allowedPages) && user.allowedPages.length > 0
+                        ? user.allowedPages.join(', ')
+                        : <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{
                         padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                        backgroundColor: user.role === 'admin' ? '#fef3c7' : '#eff6ff',
-                        color: user.role === 'admin' ? '#92400e' : '#1e40af',
+                          backgroundColor: user.role === 'super_admin' ? '#fce7f3' : user.role === 'admin' ? '#fef3c7' : '#eff6ff',
+                          color: user.role === 'super_admin' ? '#9d174d' : user.role === 'admin' ? '#92400e' : '#1e40af',
                       }}>
-                        {user.role === 'admin' ? '🔐 Admin' : '👤 User'}
+                          {user.role === 'super_admin' ? '👑 super admin' : user.role === 'admin' ? '🔐 Admin' : '👤 User'}
                       </span>
                     </td>
                     <td style={{ padding: '12px 14px', color: '#94a3b8', fontSize: '12px' }}>
@@ -236,6 +371,125 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* Activity journal */}
+        <div style={{ marginTop: '40px', paddingTop: '28px', borderTop: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ margin: 0, fontSize: '15px', color: '#1e293b', fontWeight: '800' }}>
+              📜 Journal d&apos;activité ({activityTotal} en base)
+            </h3>
+            <button
+              type="button"
+              onClick={loadActivityLogs}
+              disabled={activityLoading}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: '#fff',
+                color: '#475569',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: activityLoading ? 'wait' : 'pointer',
+              }}
+            >
+              {activityLoading ? '…' : 'Rafraîchir'}
+            </button>
+          </div>
+          {activityLogError ? (
+            <div style={{ color: '#b45309', fontSize: '13px', padding: '12px 14px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fcd34d' }}>
+              <strong>Impossible de charger le journal.</strong> {activityLogError}
+              <div style={{ marginTop: '8px', color: '#92400e', fontSize: '12px' }}>
+                Vérifiez que le backend tourne avec le code à jour (build + redémarrage). En cas d’erreur SQL ou de table absente avec{' '}
+                <code style={{ fontSize: '11px' }}>DB_SYNCHRONIZE=false</code>, appliquez{' '}
+                <code style={{ fontSize: '11px' }}>backend/sql/patches/010_activity_logs.sql</code> sur PostgreSQL.
+              </div>
+            </div>
+          ) : activityLoading && activityLogs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>Chargement du journal…</div>
+          ) : activityLogs.length === 0 ? (
+            <div style={{ color: '#64748b', fontSize: '13px' }}>
+              <p style={{ margin: '0 0 8px 0' }}>
+                <strong>Aucune ligne pour l’instant</strong> — c’est normal si personne ne s’est connecté ni n’a enregistré de tournée depuis l’activation du journal.
+              </p>
+              <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+                Déclenchez une action (connexion, sauvegarde d’un formulaire tournée, import Excel TMS), puis cliquez sur <strong>Rafraîchir</strong>.
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    {['Date / heure', 'Action', 'Acteur', 'Cible', 'IP', 'Détails'].map((h) => (
+                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityLogs.slice((logPage - 1) * logsPerPage, logPage * logsPerPage).map((row) => (
+                    <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {new Date(row.created_at).toLocaleString('fr-FR')}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontWeight: '600', color: '#1e293b' }}>
+                        {ACTION_LABELS[row.action] || row.action}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#64748b' }}>
+                        {row.actor_email || '—'}
+                        {row.actor_user_id != null ? <span style={{ color: '#94a3b8', fontSize: '11px' }}> #{row.actor_user_id}</span> : null}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontFamily: 'monospace', fontSize: '11px' }}>
+                        {row.target_type ? `${row.target_type}: ` : ''}
+                        {row.target_id || '—'}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#94a3b8', fontFamily: 'monospace', fontSize: '11px' }}>
+                        {row.ip || '—'}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#475569', maxWidth: '280px', wordBreak: 'break-word' }}>
+                        {row.details && Object.keys(row.details).length > 0
+                          ? JSON.stringify(row.details)
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination Controls */}
+              {activityLogs.length > logsPerPage && (() => {
+                const totalLogPages = Math.ceil(activityLogs.length / logsPerPage);
+                return (
+                  <div style={{ padding: '12px 14px', borderTop: '1px solid #e5e7eb', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                      Page {logPage} sur {totalLogPages}
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        disabled={logPage === 1}
+                        onClick={() => setLogPage(p => p - 1)}
+                        style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#475569', borderRadius: '6px', border: '1px solid #e5e7eb', background: logPage === 1 ? '#f8fafc' : '#fff', cursor: logPage === 1 ? 'not-allowed' : 'pointer' }}
+                      >
+                        Précédent
+                      </button>
+                      <button
+                        type="button"
+                        disabled={logPage === totalLogPages}
+                        onClick={() => setLogPage(p => p + 1)}
+                        style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#475569', borderRadius: '6px', border: '1px solid #e5e7eb', background: logPage === totalLogPages ? '#f8fafc' : '#fff', cursor: logPage === totalLogPages ? 'not-allowed' : 'pointer' }}
+                      >
+                        Suivant
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           )}
         </div>
       </div>

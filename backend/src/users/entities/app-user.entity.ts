@@ -17,6 +17,9 @@ export class AppUser {
   @Column({ type: 'varchar', length: 100, nullable: true, default: null })
   matricule!: string | null;
 
+  @Column({ name: 'allowed_pages', type: 'text', nullable: true, default: null })
+  allowedPages!: string | null;
+
   @Column({ name: 'password_hash', type: 'varchar', length: 255 })
   passwordHash!: string;
 

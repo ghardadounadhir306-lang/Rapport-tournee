@@ -1,19 +1,70 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as XLSX from 'xlsx';
 import { DataSource, Repository } from 'typeorm';
+import { ActivityLogService } from '../activity/activity-log.service';
+import { AnomalyEvaluationService } from '../anomalies/anomaly-evaluation.service';
 import { TmsImportRow } from './entities/tms-import-row.entity';
 import { TmsFormData } from './entities/tms-form-data.entity';
+import { resolveSiteCodeForDisplay } from './site-code-lookup';
+import { ClientsPoiService } from '../clients-poi/clients-poi.service';
+import { TourLegKmHistoryService } from './tour-leg-km-history.service';
 
 @Injectable()
-export class TmsService {
+export class TmsService implements OnModuleDestroy {
+  private tmsDbDataSource: DataSource | null = null;
+
   constructor(
     @InjectRepository(TmsImportRow)
     private readonly tmsImportRowRepo: Repository<TmsImportRow>,
     @InjectRepository(TmsFormData)
     private readonly formDataRepo: Repository<TmsFormData>,
     private readonly dataSource: DataSource,
+    private readonly activity: ActivityLogService,
+    private readonly anomalyEvaluation: AnomalyEvaluationService,
+    private readonly clientsPoi: ClientsPoiService,
+    private readonly tourLegKmHistory: TourLegKmHistoryService,
   ) {}
+
+  async onModuleDestroy() {
+    if (this.tmsDbDataSource?.isInitialized) {
+      await this.tmsDbDataSource.destroy();
+    }
+  }
+
+  private async getTmsDbDataSource(): Promise<DataSource> {
+    if (this.tmsDbDataSource?.isInitialized) {
+      return this.tmsDbDataSource;
+    }
+
+    const host = process.env.TMS_DB_HOST ?? process.env.DB_HOST ?? '127.0.0.1';
+    const port = Number(process.env.TMS_DB_PORT ?? process.env.DB_PORT ?? '5432');
+    const username = process.env.TMS_DB_USER ?? process.env.DB_USER ?? 'postgres';
+    const password = process.env.TMS_DB_PASSWORD ?? process.env.DB_PASSWORD ?? '';
+    const database = process.env.TMS_DB_NAME ?? 'TMS_DB';
+
+    this.tmsDbDataSource = new DataSource({
+      type: 'postgres',
+      host,
+      port: Number.isFinite(port) ? port : 5432,
+      username,
+      password,
+      database,
+      synchronize: false,
+      logging: false,
+    });
+    await this.tmsDbDataSource.initialize();
+    return this.tmsDbDataSource;
+  }
+
+  private async tmsDbQuery<T = any>(sql: string, params: unknown[] = []): Promise<T[]> {
+    const ds = await this.getTmsDbDataSource();
+    return ds.query(sql, params);
+  }
+
+  private async rtourneeQuery<T = any>(sql: string, params: unknown[] = []): Promise<T[]> {
+    return this.dataSource.query(sql, params);
+  }
 
   /** Max rows loaded for GET /api/tms (before dedupe by TMS id). Default 100000 so CSV-sized imports show fully. */
   private listMaxRows(): number {
@@ -21,10 +72,214 @@ export class TmsService {
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100_000;
   }
 
+  /** Affichage français des km (identique au frontend). */
+  private fmtKmThUi(km: number): string {
+    return km.toFixed(2).replace('.', ',');
+  }
+
+  /**
+   * Recherche SITCODE pour une fiche `tms-…` dans transport_data puis tms_import_rows.
+   */
+  private async resolveSitcodeForTmsFormId(formId: string): Promise<string | null> {
+    const key = String(formId).replace(/^tms-/i, '').trim();
+    if (!key) return null;
+
+    const runTms = async (sql: string): Promise<Array<{ sitcode?: unknown }>> => {
+      try {
+        return await this.tmsDbQuery(sql, [key]);
+      } catch {
+        return [];
+      }
+    };
+
+    const runRtournee = async (sql: string): Promise<Array<{ sitcode?: unknown }>> => {
+      try {
+        return await this.rtourneeQuery(sql, [key]);
+      } catch {
+        return [];
+      }
+    };
+
+    let rows = await runTms(
+      `SELECT sitcode FROM transport_data
+       WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(otsnum::text, ''))) = LOWER(TRIM($1))
+       LIMIT 1`,
+    );
+    if (!rows?.length) {
+      rows = await runRtournee(
+        `SELECT sitcode FROM tms_import_rows
+         WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($1))
+            OR LOWER(TRIM(COALESCE(otsnum::text, ''))) = LOWER(TRIM($1))
+         ORDER BY id DESC LIMIT 1`,
+      );
+    }
+    const s = this.asString(rows?.[0]?.sitcode);
+    if (!s) return null;
+    return resolveSiteCodeForDisplay(s) ?? s;
+  }
+
+  /**
+   Complète `kmTh` avec le **km aller-retour total** (dépôt → client → dépôt), comme le détail
+   * itinéraire / cumul avec retour. POST /api/clients-poi/theoretical-km-legs.
+   */
+  private firstClientFromRows(rows: unknown[]): string | null {
+    for (const r of rows) {
+      const c = this.asString((r as Record<string, unknown>)?.client);
+      if (c) return c.trim().toUpperCase();
+    }
+    return null;
+  }
+
+  private async enrichTableRowsKmTh(
+    formId: string,
+    rows: unknown[],
+    siteIdHint: string | null | undefined,
+  ): Promise<unknown[]> {
+    if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+    const hint = resolveSiteCodeForDisplay(this.asString(siteIdHint));
+    const origin = (hint != null && hint.trim() !== '' ? hint.trim() : null) ?? (await this.resolveSitcodeForTmsFormId(formId));
+    if (!origin) return rows;
+
+    const orderedCodes = rows.map((r) => this.asString((r as Record<string, unknown>)?.client) ?? '');
+    if (!orderedCodes.some((c) => String(c).trim() !== '')) return rows;
+
+    const legKms = await this.clientsPoi.theoreticalKmLegsAlongTour(origin, orderedCodes);
+    return rows.map((r, i) => {
+      const row = r as Record<string, unknown>;
+      const km = legKms[i];
+      if (km == null || !Number.isFinite(km)) return { ...row, kmTh: '' };
+      return { ...row, kmTh: this.fmtKmThUi(km) };
+    });
+  }
+
+  /**
+   * Fetch transport_data fields to use as fallback defaults for the web form.
+   * This bridges mobile-entered data into the web platform automatically.
+   */
+  private async fetchTransportDataDefaults(formId: string): Promise<{
+    formDefaults: Record<string, string | null>;
+    clientRows: unknown[];
+    autoFilledFields: string[];
+  }> {
+    const empty = { formDefaults: {}, clientRows: [], autoFilledFields: [] };
+    const key = String(formId).replace(/^tms-/i, '').trim();
+    if (!key) return empty;
+
+    try {
+      const rows: any[] = await this.tmsDbQuery(
+        `SELECT td.*
+         FROM transport_data td
+         WHERE LOWER(TRIM(COALESCE(td.voycle::text, ''))) = LOWER(TRIM($1))
+            OR LOWER(TRIM(COALESCE(td.otsnum::text, ''))) = LOWER(TRIM($1))
+            OR LOWER(TRIM(COALESCE(td.toucode::text, ''))) = LOWER(TRIM($1))
+         ORDER BY td.voydtd ASC NULLS LAST, td.updated_at DESC NULLS LAST
+         LIMIT 50`,
+        [key],
+      );
+      if (!rows?.length) return empty;
+
+      // Use the first row for header-level fields
+      const first = rows[0];
+
+      const fmtTime = (v: unknown): string | null => {
+        if (v == null) return null;
+        const s = String(v).trim();
+        if (!s) return null;
+        // TIME columns come back as "HH:MM:SS" — keep HH:MM
+        const m = s.match(/^(\d{2}:\d{2})/);
+        return m ? m[1] : s;
+      };
+
+      const fmtNum = (v: unknown): string | null => {
+        if (v == null) return null;
+        const n = Number(String(v).replace(',', '.'));
+        return Number.isFinite(n) ? String(n) : null;
+      };
+
+      const formDefaults: Record<string, string | null> = {
+        hDepart: fmtTime(first.voyhrd),
+        kmDepart: fmtNum(first.plakm1),
+        hRetour: fmtTime(first.voyhrf),
+        kmRetour: fmtNum(first.plakm2),
+        kmDernierClient: this.asString(first.km_dernier_client) ?? fmtNum(first.otskm2),
+        marchandise: this.asString(first.chargement),
+        totalPalettes: first.voypal != null ? String(first.voypal) : null,
+      };
+
+      // Track which fields actually have data from transport_data
+      const autoFilledFields = Object.entries(formDefaults)
+        .filter(([, v]) => v != null && String(v).trim() !== '')
+        .map(([k]) => k);
+
+      // Build client rows from all transport_data rows for this tournée
+      const clientRows = rows.map((row: any, idx: number) => ({
+        id: Number(row.source_transport_id ?? idx + 1),
+        client: this.asString(row.otdcode) ?? '',
+        dep: this.asString(row.tiecode) ?? '',
+        um: this.asString(row.artcode) ?? '',
+        pal: this.asString(row.entnbpal) ?? this.asString(row.voypal) ?? '',
+        arrivee: fmtTime(row.arrivee_client) ?? fmtTime(row.voyhrd) ?? '',
+        depart: fmtTime(row.depart_client) ?? fmtTime(row.voyhrf) ?? '',
+        kmArv: this.asString(row.km_arv_client) ?? fmtNum(row.plakm2) ?? fmtNum(row.km_tsp) ?? '',
+        taxe: this.asString(row.ottmt) ?? '',
+        livree: false,
+        kmTh: '',
+        region: this.asString(row.sitcode) ?? '',
+      }));
+
+      return { formDefaults, clientRows, autoFilledFields };
+    } catch {
+      return empty;
+    }
+  }
+
   async getFormData(id: string) {
     try {
       const data = await this.formDataRepo.findOne({ where: { id } });
+
+      // Always fetch transport_data defaults (even if form data exists)
+      const tdDefaults = await this.fetchTransportDataDefaults(id);
+
       if (data) {
+        let tableRows = data.table_rows ?? [];
+
+        // If no saved table rows, use transport_data client rows as fallback
+        if (!Array.isArray(tableRows) || tableRows.length === 0) {
+          tableRows = tdDefaults.clientRows;
+        }
+
+        tableRows = await this.enrichTableRowsKmTh(id, tableRows as unknown[], data.siteId);
+
+        const siteHint = data.siteId ?? (await this.resolveSitcodeForTmsFormId(id));
+        const firstClient = this.firstClientFromRows(tableRows);
+        const kmMoyHist =
+          firstClient != null
+            ? await this.tourLegKmHistory.getAverage(siteHint ?? undefined, firstClient)
+            : null;
+        const kmMoyUi =
+          kmMoyHist != null ? this.fmtKmThUi(kmMoyHist) : data.km_moy != null ? data.km_moy : '';
+
+        // Helper: use saved value if present, otherwise fallback to transport_data
+        const or = (saved: unknown, tdKey: string): any => {
+          const s = saved != null && String(saved).trim() !== '' ? saved : null;
+          return s ?? tdDefaults.formDefaults[tdKey] ?? null;
+        };
+
+        // Track which fields were auto-filled from transport_data (not manually saved)
+        const autoFilled: string[] = [];
+        const orTrack = (saved: unknown, tdKey: string): any => {
+          const s = saved != null && String(saved).trim() !== '' ? saved : null;
+          if (s != null) return s;
+          const fallback = tdDefaults.formDefaults[tdKey];
+          if (fallback != null && String(fallback).trim() !== '') {
+            autoFilled.push(tdKey);
+            return fallback;
+          }
+          return null;
+        };
+
         const input_data = {
           date: data.date,
           wms: data.wms,
@@ -33,16 +288,16 @@ export class TmsService {
           driver: data.driver,
           dep: data.dep,
           kmFacture: data.km_facture,
-          marchandise: data.marchandise,
+          marchandise: orTrack(data.marchandise, 'marchandise'),
           conformite: data.conformite,
           observation: data.observation,
-          hDepart: data.h_depart,
-          kmDepart: data.km_depart,
-          hRetour: data.h_retour,
-          kmRetour: data.km_retour,
-          kmDernierClient: data.km_dernier_client,
-          kmMoy: data.km_moy,
-          totalPalettes: data.total_palettes,
+          hDepart: orTrack(data.h_depart, 'hDepart'),
+          kmDepart: orTrack(data.km_depart, 'kmDepart'),
+          hRetour: orTrack(data.h_retour, 'hRetour'),
+          kmRetour: orTrack(data.km_retour, 'kmRetour'),
+          kmDernierClient: orTrack(data.km_dernier_client, 'kmDernierClient'),
+          kmMoy: kmMoyUi,
+          totalPalettes: orTrack(data.total_palettes, 'totalPalettes'),
           totalPalettes2: data.total_palettes_2,
           tourneeSec: data.tournee_sec,
           apresMidi: Boolean(data.apres_midi),
@@ -53,8 +308,10 @@ export class TmsService {
           gpsEndLng: data.gps_end_lng != null ? String(data.gps_end_lng) : '',
           gpsStartLabel: '',
           gpsEndLabel: '',
+          prestationId: data.prestationId,
+          siteId: siteHint,
+          autoFilledFromMobile: autoFilled,
         };
-        const tableRows = data.table_rows ?? [];
         return {
           id: data.id,
           tms_id: data.tms_id,
@@ -64,7 +321,60 @@ export class TmsService {
           formData: input_data,
         };
       }
-      return { id, tms_id: id, table_rows: [], tableRows: [], input_data: {}, formData: {} };
+
+      // No saved form data at all — build entirely from transport_data defaults
+      const siteHint = await this.resolveSitcodeForTmsFormId(id);
+      let tableRows = tdDefaults.clientRows;
+      if (tableRows.length > 0) {
+        tableRows = await this.enrichTableRowsKmTh(id, tableRows as unknown[], siteHint);
+      }
+      const firstClient = this.firstClientFromRows(tableRows);
+      const kmMoyHist =
+        firstClient != null
+          ? await this.tourLegKmHistory.getAverage(siteHint ?? undefined, firstClient)
+          : null;
+      const kmMoyUi = kmMoyHist != null ? this.fmtKmThUi(kmMoyHist) : '';
+
+      const input_data = {
+        date: null,
+        wms: null,
+        prestation: null,
+        truck: null,
+        driver: null,
+        dep: null,
+        kmFacture: null,
+        marchandise: tdDefaults.formDefaults.marchandise ?? null,
+        conformite: 'Conforme',
+        observation: null,
+        hDepart: tdDefaults.formDefaults.hDepart ?? null,
+        kmDepart: tdDefaults.formDefaults.kmDepart ?? null,
+        hRetour: tdDefaults.formDefaults.hRetour ?? null,
+        kmRetour: tdDefaults.formDefaults.kmRetour ?? null,
+        kmDernierClient: tdDefaults.formDefaults.kmDernierClient ?? null,
+        kmMoy: kmMoyUi,
+        totalPalettes: tdDefaults.formDefaults.totalPalettes ?? '0',
+        totalPalettes2: null,
+        tourneeSec: '0',
+        apresMidi: false,
+        interSite: false,
+        gpsStartLat: '',
+        gpsStartLng: '',
+        gpsEndLat: '',
+        gpsEndLng: '',
+        gpsStartLabel: '',
+        gpsEndLabel: '',
+        prestationId: null,
+        siteId: siteHint,
+        autoFilledFromMobile: tdDefaults.autoFilledFields,
+      };
+      return {
+        id,
+        tms_id: id,
+        table_rows: tableRows,
+        tableRows,
+        input_data,
+        formData: input_data,
+      };
     } catch (e: any) {
       const sqlState = e?.sqlState ?? e?.driverError?.sqlState;
       const errno = e?.errno ?? e?.driverError?.errno;
@@ -78,7 +388,7 @@ export class TmsService {
     }
   }
 
-  async saveFormData(id: string, body: any) {
+  async saveFormData(id: string, body: any, ctx?: { ip?: string | null }) {
     try {
       let existing = await this.formDataRepo.findOne({ where: { id } });
       if (!existing) {
@@ -92,6 +402,14 @@ export class TmsService {
       existing.truck = inputs.truck || null;
       existing.driver = inputs.driver || null;
       existing.dep = inputs.dep || null;
+      existing.prestationId =
+        inputs.prestationId != null && String(inputs.prestationId).trim() !== ''
+          ? String(inputs.prestationId).trim()
+          : null;
+      existing.siteId =
+        inputs.siteId != null && String(inputs.siteId).trim() !== ''
+          ? String(inputs.siteId).trim()
+          : null;
       existing.km_facture = inputs.kmFacture || null;
       existing.marchandise = inputs.marchandise || null;
       existing.conformite = inputs.conformite || null;
@@ -101,7 +419,6 @@ export class TmsService {
       existing.h_retour = inputs.hRetour || null;
       existing.km_retour = inputs.kmRetour || null;
       existing.km_dernier_client = inputs.kmDernierClient || null;
-      existing.km_moy = inputs.kmMoy || null;
       existing.total_palettes = inputs.totalPalettes || null;
       existing.total_palettes_2 = inputs.totalPalettes2 || null;
       existing.tournee_sec = inputs.tourneeSec || null;
@@ -118,17 +435,56 @@ export class TmsService {
       existing.gps_end_lat = toDec(inputs.gpsEndLat ?? inputs.gps_end_lat) as any;
       existing.gps_end_lng = toDec(inputs.gpsEndLng ?? inputs.gps_end_lng) as any;
 
-      existing.table_rows = body.table_rows || [];
-      
+      const tourneeKey = this.parseTourneeKey(id);
+      if (tourneeKey) {
+        await this.syncTransportDataDriverFromForm(tourneeKey, existing.driver);
+      }
+
+      const rawRows = body.table_rows || [];
+      existing.table_rows = (await this.enrichTableRowsKmTh(id, rawRows, existing.siteId)) as any;
+
+      const siteForHistory = existing.siteId ?? (await this.resolveSitcodeForTmsFormId(id));
+      await this.tourLegKmHistory.recordSamples(id, siteForHistory, existing.table_rows as any[]);
+      const firstClientAfter = this.firstClientFromRows(existing.table_rows as unknown[]);
+      const kmMoyAvg = await this.tourLegKmHistory.getAverage(siteForHistory ?? undefined, firstClientAfter);
+      existing.km_moy =
+        kmMoyAvg != null
+          ? this.fmtKmThUi(kmMoyAvg)
+          : inputs.kmMoy != null && String(inputs.kmMoy).trim() !== ''
+            ? String(inputs.kmMoy).trim()
+            : null;
+
       try {
-        return await this.formDataRepo.save(existing);
+        const saved = await this.formDataRepo.save(existing);
+        await this.activity.log({
+          action: 'FORM_SAVE',
+          targetType: 'tms_form',
+          targetId: id,
+          details: {
+            tms_id: saved.tms_id,
+            date: saved.date,
+            prestation: saved.prestation,
+          },
+          ip: ctx?.ip ?? null,
+        });
+        await this.anomalyEvaluation.evaluateAfterSave(id);
+        return saved;
       } catch (e: any) {
         if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('gps_')) {
           delete (existing as any).gps_start_lat;
           delete (existing as any).gps_start_lng;
           delete (existing as any).gps_end_lat;
           delete (existing as any).gps_end_lng;
-          return await this.formDataRepo.save(existing);
+          const saved = await this.formDataRepo.save(existing);
+          await this.activity.log({
+            action: 'FORM_SAVE',
+            targetType: 'tms_form',
+            targetId: id,
+            details: { tms_id: saved.tms_id, date: saved.date, prestation: saved.prestation, strippedGps: true },
+            ip: ctx?.ip ?? null,
+          });
+          await this.anomalyEvaluation.evaluateAfterSave(id);
+          return saved;
         }
         throw e;
       }
@@ -172,19 +528,27 @@ export class TmsService {
     const transportRows = await this.fetchTransportDataRows(take);
     const totalCount = importCount + transportRows.length;
 
-    // transport_data: each row is its own entry — no deduplication (id already unique via ROW_NUMBER)
-    const transportList = transportRows.map((row) => this.mapRowToListItem(row));
+    // transport_data: list view must be distinct by tournée/TMS key
+    const transportList = this.buildListFromRows(transportRows, 'transport_data');
 
     // tms_import_rows: keep existing deduplication by TMS number
-    const importList = this.buildListFromRows(importRows);
+    const importList = this.buildListFromRows(importRows, 'tms_import_rows');
 
-    let list = [...transportList, ...importList];
+    const merged = [...transportList, ...importList];
+    const byId = new Map<string, (typeof merged)[number]>();
+    for (const item of merged) {
+      if (!byId.has(item.id)) byId.set(item.id, item);
+    }
+
+    let list = Array.from(byId.values());
+    const distinctCount = list.length;
     if (hasFilters) {
       list = this.filterListByQuery(list, query);
     }
 
     return {
-      entriesCount: totalCount,
+      entriesCount: distinctCount,
+      rowsCount: totalCount,
       list,
       active: null,
     };
@@ -192,17 +556,19 @@ export class TmsService {
 
   private async fetchTransportDataRows(limit: number): Promise<Array<Partial<TmsImportRow>>> {
     try {
-      const rows: any[] = await this.dataSource.query(
+      const rows: any[] = await this.tmsDbQuery(
         `SELECT ROW_NUMBER() OVER (ORDER BY otsnum DESC NULLS LAST) AS _rn,
-                affcode, artcode, cdate, entnbpal, otdcode, otscontainer, otsetat,
-                otskm2, otsnumbdx, ottmt, placha1i, plakm1, plakm2, plalib, plamoti,
-                plargiarr, rgilibl, salnom, saltel, sitcode, sitsiretedi, tiecode,
-                toucode, voycle, voydtd, voyhrd, voypal, performance_camion,
-                performance_chauffeur, taux_remplissage_pal, taux_remplissage_ton,
-                mdate, sitechauff, sitecamion, salmemoe, otsnum, platouordre,
-                salmobilite, km_tsp, toutrafcode, chargement, voydtf, otdhd, voymemo
-         FROM transport_data
-         ORDER BY otsnum DESC NULLS LAST
+             td.affcode, td.artcode, td.cdate, td.entnbpal, td.otdcode, td.otscontainer, td.otsetat,
+             td.otskm2, td.otsnumbdx, td.ottmt, td.placha1i, td.plakm1, td.plakm2, td.plalib, td.plamoti,
+             td.plargiarr, td.rgilibl,
+             td.salnom, td.saltel,
+             td.sitcode, td.sitsiretedi, td.tiecode,
+             td.toucode, td.voycle, td.voydtd, td.voyhrd, td.voypal, td.performance_camion,
+             td.performance_chauffeur, td.taux_remplissage_pal, td.taux_remplissage_ton,
+             td.mdate, td.sitechauff, td.sitecamion, td.salmemoe, td.otsnum, td.platouordre,
+             td.salmobilite, td.km_tsp, td.toutrafcode, td.chargement, td.voydtf, td.otdhd, td.voymemo
+        FROM transport_data td
+        ORDER BY td.otsnum DESC NULLS LAST
          LIMIT ${limit}`,
       );
       return rows.map((r) => ({
@@ -231,7 +597,7 @@ export class TmsService {
         tiecode: r.tiecode ?? null,
         toucode: r.toucode ?? null,
         voycle: r.voycle ?? null,
-        voydtd: r.voydtd ? new Date(r.voydtd) : null,
+        voydtd: this.asDateOnly(r.voydtd) as any,
         voyhrd: r.voyhrd ?? null,
         voypal: r.voypal ?? null,
         performance_camion: r.performance_camion ?? null,
@@ -248,7 +614,7 @@ export class TmsService {
         km_tsp: r.km_tsp ?? null,
         toutrafcode: r.toutrafcode ?? null,
         chargement: r.chargement ?? null,
-        voydtf: r.voydtf ? new Date(r.voydtf) : null,
+        voydtf: this.asDateOnly(r.voydtf) as any,
         otdhd: r.otdhd ?? null,
         voymemo: r.voymemo ?? null,
         raw_json: null,
@@ -259,7 +625,7 @@ export class TmsService {
     }
   }
 
-  async importExcel(buffer: Buffer) {
+  async importExcel(buffer: Buffer, ctx?: { ip?: string | null }) {
     if (!buffer?.length) {
       throw new BadRequestException('Empty file');
     }
@@ -300,11 +666,18 @@ export class TmsService {
       throw e;
     }
 
-    return {
+    const result = {
       sheetName,
       rowsDetected: rawRows.length,
       inserted: rowsToInsert.length,
     };
+    await this.activity.log({
+      action: 'TMS_EXCEL_IMPORT',
+      targetType: 'tms_import',
+      details: result,
+      ip: ctx?.ip ?? null,
+    });
+    return result;
   }
 
   async getTransportData(rawLimit?: string) {
@@ -315,8 +688,8 @@ export class TmsService {
         : 100;
 
     try {
-      const rows = await this.dataSource.query(
-        `SELECT * FROM transport_data LIMIT ${safeLimit}`,
+      const rows = await this.tmsDbQuery(
+        `SELECT * FROM transport_data WHERE states = 'done' ORDER BY "createdAt" DESC LIMIT ${safeLimit}`,
       );
 
       return {
@@ -337,6 +710,22 @@ export class TmsService {
       }
       throw e;
     }
+  }
+
+  async getTransportRowsByTourneeId(rawTourneeId: string) {
+    const tourneeKey = this.parseTourneeKey(rawTourneeId);
+    if (!tourneeKey) {
+      throw new BadRequestException('Identifiant tournée invalide');
+    }
+
+    const rows = await this.fetchTransportRowsByTournee(tourneeKey);
+    return {
+      tourneeId: `tms-${tourneeKey}`,
+      key: tourneeKey,
+      count: rows.length,
+      rows,
+      tableRows: this.mapTransportRowsToClientRows(rows),
+    };
   }
 
   private normalizeHeader(header: string) {
@@ -362,6 +751,10 @@ export class TmsService {
     const lower = s.toLowerCase();
     if (lower === 'undefined' || lower === 'null' || lower === 'none') return null;
     return maxLen ? s.slice(0, maxLen) : s;
+  }
+
+  private parseTourneeKey(rawTourneeId: string): string {
+    return String(rawTourneeId ?? '').replace(/^tms-/i, '').trim();
   }
 
   private asInt(value: unknown): number | null {
@@ -506,38 +899,55 @@ export class TmsService {
   }
 
   private pickTmsNumber(row: Partial<TmsImportRow>) {
+    const voycle = this.asString(row.voycle);
     const otdcode = this.asString(row.otdcode);
     const otsnum = this.asString(row.otsnum);
     const toucode = this.asString(row.toucode);
+    // Business: N° TMS = VOYCLE (clé primaire métier)
+    if (voycle) return voycle;
     if (otdcode && /^\d+$/.test(otdcode)) return otdcode;
     return otsnum ?? toucode ?? null;
   }
 
-  private mapRowToListItem(row: Partial<TmsImportRow>) {
+  /**
+   * Liste sidebar / dashboard : une ligne affichée = une ligne `transport_data` ou `tms_import_rows`.
+   * Liens avec `client_pois` (réf. géo) : `sitcode` → site départ = `client_pois.client_code` ;
+   * `otdcode` → client = même table. Km TH UI = haversine entre ces POI via l’API clients-poi.
+   */
+  private mapRowToListItem(row: Partial<TmsImportRow>, source?: 'transport_data' | 'tms_import_rows') {
     const tmsNumber = this.pickTmsNumber(row);
     const normalizedId = `tms-${tmsNumber ?? row.id}`;
-    const date = this.normalizeUiDate(row.cdate) ?? (row.voydtd ? this.formatDateOnly(row.voydtd) : null);
+    const date = this.normalizeUiDate((row as any).voydtd) ?? this.normalizeUiDate(row.cdate);
 
     return {
       id: normalizedId,
       tms: tmsNumber,
-      wms: this.asString(row.otsnumbdx) ?? null,
+      // Business: N° WMS is always 0 in the UI dataset
+      wms: '0',
       date,
-      site: this.asString(row.sitcode) ?? this.asString(row.sitecamion) ?? this.asString(row.sitechauff) ?? null,
-      truck: this.asString(row.voycle) ?? null,
+      site: resolveSiteCodeForDisplay(this.asString(row.sitcode)),
+      // Business: CAMION column in UI = PLAMOTI (not VOYCLE)
+      truck: this.asString(row.plamoti) ?? null,
+      // Business: CHAUFFEUR = SALNOM
       driver: this.asString(row.salnom) ?? '',
       /** Client / lieu chargement label (OTDCODE in DB) — used in UI “Client” column */
       otdcode: this.asString(row.otdcode) ?? null,
-      dep: this.asString(row.toutrafcode) ?? null,
-      prestation: this.asString(row.plalib) ?? this.asString(row.artcode) ?? this.asString(row.chargement) ?? null,
+      // Business: DEP = TIECODE
+      dep: this.asString(row.tiecode) ?? null,
+      // Business: PRESTATION is a manual input field (saisie) => not read from base list rows
+      prestation: null,
+      source: source ?? null,
       active: false,
     };
   }
 
-  private buildListFromRows(rows: Array<Partial<TmsImportRow>>) {
+  private buildListFromRows(
+    rows: Array<Partial<TmsImportRow>>,
+    source?: 'transport_data' | 'tms_import_rows',
+  ) {
     const map = new Map<string, ReturnType<TmsService['mapRowToListItem']>>();
     for (const row of rows) {
-      const item = this.mapRowToListItem(row);
+      const item = this.mapRowToListItem(row, source);
       if (!map.has(item.id)) {
         map.set(item.id, item);
       }
@@ -564,7 +974,11 @@ export class TmsService {
         const idate = (item.date ?? '').slice(0, 10).toLowerCase();
         if (!idate.includes(d) && (item.date ?? '').toLowerCase() !== d) return false;
       }
-      if (q('site') && !(item.site ?? '').toLowerCase().includes(q('site'))) return false;
+      if (q('site')) {
+        const needle = q('site');
+        const s = (item.site ?? '').toLowerCase();
+        if (!s.includes(needle)) return false;
+      }
       if (q('truck') && !(item.truck ?? '').toLowerCase().includes(q('truck'))) return false;
       if (q('driver') && !(item.driver ?? '').toLowerCase().includes(q('driver'))) return false;
       if (q('dep') && !(item.dep ?? '').toLowerCase().includes(q('dep'))) return false;
@@ -635,5 +1049,312 @@ export class TmsService {
       chargement: raw.row_chargement,
       otsnumbdx: this.readOtsnumbdxFromRawJson(raw.row_raw_json),
     }));
+  }
+
+  private async fetchTransportRowsByTournee(tourneeKey: string): Promise<Array<Record<string, unknown>>> {
+    try {
+      const rows = await this.tmsDbQuery(
+        `SELECT td.*
+         FROM transport_data td
+         WHERE LOWER(TRIM(COALESCE(td.voycle::text, ''))) = LOWER(TRIM($1))
+            OR LOWER(TRIM(COALESCE(td.otdcode::text, ''))) = LOWER(TRIM($1))
+            OR LOWER(TRIM(COALESCE(td.otsnum::text, ''))) = LOWER(TRIM($1))
+            OR LOWER(TRIM(COALESCE(td.toucode::text, ''))) = LOWER(TRIM($1))
+         ORDER BY td.voydtd ASC NULLS LAST, td.otdcode ASC NULLS LAST, td.otsnum ASC NULLS LAST`,
+        [tourneeKey],
+      );
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async findRtourneeChauffeurByName(
+    fullNameRaw: string,
+  ): Promise<{ fullName: string; tel: string | null } | null> {
+    const fullName = this.asString(fullNameRaw, 255);
+    if (!fullName) return null;
+
+    const rows = await this.rtourneeQuery<Array<Record<string, unknown>>[number]>(
+      `SELECT nom, prenom, tel
+       FROM chauffeurs
+       WHERE LOWER(TRIM(CONCAT(COALESCE(prenom, ''), ' ', COALESCE(nom, '')))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(CONCAT(COALESCE(nom, ''), ' ', COALESCE(prenom, '')))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(nom, ''))) = LOWER(TRIM($1))
+       LIMIT 1`,
+      [fullName],
+    );
+
+    if (!rows.length) return null;
+
+    const prenom = this.asString(rows[0].prenom, 255) ?? '';
+    const nom = this.asString(rows[0].nom, 255) ?? '';
+    const normalized = `${prenom} ${nom}`.replace(/\s+/g, ' ').trim() || fullName;
+    return {
+      fullName: normalized,
+      tel: this.asString(rows[0].tel, 64),
+    };
+  }
+
+  private async resolveDriverProfileForTms(
+    tourneeKey: string,
+    driverName: string,
+  ): Promise<{ fullName: string; tel: string | null }> {
+    const tmsRows = await this.tmsDbQuery<Array<Record<string, unknown>>[number]>(
+      `SELECT salnom, saltel
+       FROM transport_data
+       WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(otdcode::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(otsnum::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(toucode::text, ''))) = LOWER(TRIM($1))
+       ORDER BY updated_at DESC NULLS LAST
+       LIMIT 5`,
+      [tourneeKey],
+    );
+
+    // Step 1: try existing TMS row driver against Rtournee
+    for (const row of tmsRows) {
+      const existingName = this.asString(row.salnom, 255);
+      if (!existingName) continue;
+      const fromRtournee = await this.findRtourneeChauffeurByName(existingName);
+      if (fromRtournee) return fromRtournee;
+    }
+
+    // Step 2: fallback to submitted name
+    const byInputName = await this.findRtourneeChauffeurByName(driverName);
+    if (byInputName) return byInputName;
+
+    // Step 3: missing in Rtournee -> keep name and push to TMS transport_data fields
+    return {
+      fullName: driverName,
+      tel: this.asString(tmsRows[0]?.saltel, 64),
+    };
+  }
+
+  private async syncTransportDataDriverFromForm(tourneeKey: string, driverRaw: unknown): Promise<void> {
+    const driverName = this.asString(driverRaw, 255);
+    if (!driverName) return;
+
+    const profile = await this.resolveDriverProfileForTms(tourneeKey, driverName);
+
+    const params: unknown[] = [tourneeKey];
+    const updates: string[] = ['salmemoe = $2', 'salnom = $2', "mdate = TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')"];
+    params.push(profile.fullName);
+
+    if (profile.tel) {
+      updates.push(`saltel = $${params.length + 1}`);
+      params.push(profile.tel);
+    }
+
+    await this.tmsDbQuery(
+      `UPDATE transport_data
+       SET ${updates.join(', ')}
+       WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(otdcode::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(otsnum::text, ''))) = LOWER(TRIM($1))
+          OR LOWER(TRIM(COALESCE(toucode::text, ''))) = LOWER(TRIM($1))`,
+      params,
+    );
+  }
+
+  private mapTransportRowsToClientRows(rows: Array<Record<string, unknown>>) {
+    return rows.map((row, idx) => ({
+      id: Number(row.source_transport_id ?? idx + 1),
+      client: this.asString(row.otdcode) ?? '',
+      dep: this.asString(row.tiecode) ?? '',
+      um: this.asString(row.artcode) ?? '',
+      pal: this.asString(row.entnbpal) ?? this.asString(row.voypal) ?? '',
+      arrivee: this.asString(row.voyhrd) ?? '',
+      depart: this.asString(row.voyhrf) ?? '',
+      kmArv: this.asString(row.plakm2) ?? this.asString(row.km_tsp) ?? '',
+      taxe: this.asString(row.ottmt) ?? '',
+      livree: false,
+      kmTh: '',
+      region: this.asString(row.sitcode) ?? '',
+    }));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     OPTIMISATION — analyse des écarts KM / Temps
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  private parseNum(v: unknown): number | null {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(String(v).replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  private parseTimeToMin(v: unknown): number | null {
+    if (!v) return null;
+    const s = String(v).trim();
+    const parts = s.split(':');
+    if (parts.length < 2) return null;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  }
+
+  /**
+   * Returns full optimisation analysis for all tournées with form data.
+   * Single endpoint — no N+1 queries from the frontend.
+   */
+  async getOptimisationData() {
+    // 1. Get all form data records
+    let formDataRecords: TmsFormData[] = [];
+    try {
+      formDataRecords = await this.formDataRepo.find({
+        order: { updated_at: 'DESC' },
+      });
+    } catch (e: any) {
+      if (e?.code === '42P01') return { stats: this.emptyStats(), rows: [] };
+      throw e;
+    }
+
+    // 2. Get the TMS list for site/display info
+    const tmsData = await this.getData({});
+    const tmsMap = new Map(tmsData.list.map((item: any) => [item.id, item]));
+
+    // 3. Process each form data record
+    const analysis = formDataRecords.map((fd) => {
+      const tmsItem: any = tmsMap.get(fd.id) ?? tmsMap.get(fd.tms_id ?? '') ?? null;
+      const tableRows: any[] = Array.isArray(fd.table_rows) ? fd.table_rows : [];
+
+      // ── KM calculations ──
+      const kmFacture = this.parseNum(fd.km_facture);
+      const kmDepart = this.parseNum(fd.km_depart);
+      const kmDernierClient = this.parseNum(fd.km_dernier_client);
+      const kmRetour = this.parseNum(fd.km_retour);
+
+      const kmReel =
+        kmFacture != null
+          ? kmFacture
+          : kmDernierClient != null && kmDepart != null && kmDernierClient > kmDepart
+            ? Math.round((kmDernierClient - kmDepart) * 100) / 100
+            : null;
+
+      // Sum of KM théorique from table rows
+      const kmTheorique = tableRows.reduce((sum, row) => {
+        const v = Number(String(row?.kmTh ?? '').replace(',', '.'));
+        return sum + (Number.isFinite(v) && v > 0 ? v : 0);
+      }, 0);
+
+      const decalageKm =
+        kmReel != null && kmTheorique > 0
+          ? Math.round((kmReel - kmTheorique) * 100) / 100
+          : null;
+      const decalageKmPct =
+        decalageKm != null && kmTheorique > 0
+          ? Math.round((decalageKm / kmTheorique) * 1000) / 10
+          : null;
+      // Conforme if within ±10%
+      const conformiteKm = decalageKmPct != null ? Math.abs(decalageKmPct) <= 10 : null;
+
+      // ── Timing calculations ──
+      const hDep = this.parseTimeToMin(fd.h_depart);
+      const hRet = this.parseTimeToMin(fd.h_retour);
+      const dureeReelle = hDep != null && hRet != null && hRet > hDep ? hRet - hDep : null;
+
+      const nbClients = tableRows.filter(
+        (r: any) => r?.client && String(r.client).trim(),
+      ).length;
+      // Estimate: 50 km/h average speed + 20 min per client stop
+      const dureeEstimee =
+        kmTheorique > 0 && nbClients > 0
+          ? Math.round((kmTheorique / 50) * 60 + nbClients * 20)
+          : null;
+
+      const decalageTemps =
+        dureeReelle != null && dureeEstimee != null ? dureeReelle - dureeEstimee : null;
+      const decalageTPct =
+        decalageTemps != null && dureeEstimee != null && dureeEstimee > 0
+          ? Math.round((decalageTemps / dureeEstimee) * 1000) / 10
+          : null;
+      // Conforme if within ±15%
+      const conformiteTemps = decalageTPct != null ? Math.abs(decalageTPct) <= 15 : null;
+
+      // ── Client details ──
+      const clients = tableRows
+        .filter((r: any) => r?.client && String(r.client).trim())
+        .map((r: any) => ({
+          code: r.client,
+          livree: r.livree ?? false,
+          kmArv: r.kmArv ?? '',
+          kmTh: r.kmTh ?? '',
+          arrivee: r.arrivee ?? '',
+          depart: r.depart ?? '',
+          region: r.region ?? '',
+        }));
+
+      return {
+        id: fd.id,
+        tmsId: fd.tms_id,
+        date: fd.date ?? tmsItem?.date ?? '',
+        wms: fd.wms ?? tmsItem?.wms ?? '',
+        truck: fd.truck ?? tmsItem?.truck ?? '',
+        driver: fd.driver ?? tmsItem?.driver ?? '',
+        prestation: fd.prestation ?? '',
+        site: tmsItem?.site ?? fd.siteId ?? '',
+        kmReel,
+        kmTheorique,
+        decalageKm,
+        decalageKmPct,
+        conformiteKm,
+        hDepart: fd.h_depart ?? '',
+        hRetour: fd.h_retour ?? '',
+        dureeReelle,
+        dureeEstimee,
+        decalageTemps,
+        decalageTPct,
+        conformiteTemps,
+        clients,
+        nbClients,
+        updatedAt: fd.updated_at,
+      };
+    });
+
+    // 4. Compute global stats
+    const withKm = analysis.filter((a) => a.conformiteKm != null);
+    const withTemps = analysis.filter((a) => a.conformiteTemps != null);
+
+    const stats = {
+      total: analysis.length,
+      analyzed: analysis.filter((a) => a.kmReel != null || a.dureeReelle != null).length,
+      pctKm:
+        withKm.length > 0
+          ? Math.round((withKm.filter((a) => a.conformiteKm).length / withKm.length) * 100)
+          : 0,
+      pctTemps:
+        withTemps.length > 0
+          ? Math.round(
+              (withTemps.filter((a) => a.conformiteTemps).length / withTemps.length) * 100,
+            )
+          : 0,
+      conformeKmCount: withKm.filter((a) => a.conformiteKm).length,
+      conformeTCount: withTemps.filter((a) => a.conformiteTemps).length,
+      totalWithKm: withKm.length,
+      totalWithTemps: withTemps.length,
+      totalKmReel: Math.round(analysis.reduce((s, a) => s + (a.kmReel ?? 0), 0) * 100) / 100,
+      totalKmTh: Math.round(analysis.reduce((s, a) => s + (a.kmTheorique ?? 0), 0) * 100) / 100,
+      totalDureeReelle: Math.round(analysis.reduce((s, a) => s + (a.dureeReelle ?? 0), 0)),
+    };
+
+    return { stats, rows: analysis };
+  }
+
+  private emptyStats() {
+    return {
+      total: 0,
+      analyzed: 0,
+      pctKm: 0,
+      pctTemps: 0,
+      conformeKmCount: 0,
+      conformeTCount: 0,
+      totalWithKm: 0,
+      totalWithTemps: 0,
+      totalKmReel: 0,
+      totalKmTh: 0,
+      totalDureeReelle: 0,
+    };
   }
 }

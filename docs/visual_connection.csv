@@ -1,0 +1,5 @@
+"child_table","child_col","parent_table","parent_col"
+"transport_depots","transport_id","transport_data","id"
+"transport_depots","depot_id","depots","id"
+"transport_poi_clients","transport_id","transport_data","id"
+"transport_poi_clients","poi_client_id","poi_clients","id"

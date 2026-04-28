@@ -20,6 +20,7 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.13.2",
     "react-window": "1.8.11",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

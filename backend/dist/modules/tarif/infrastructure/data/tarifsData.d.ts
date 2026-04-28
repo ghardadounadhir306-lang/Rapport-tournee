@@ -1,0 +1,35 @@
+export declare const tarifsTable: ({
+    Type: string;
+    DistMin: number;
+    DistMax: number;
+    CapMin: number;
+    CapMax: number;
+    Tarifs: number;
+    __EMPTY: null;
+    __EMPTY_1: null;
+    __EMPTY_2: null;
+    Nature: string;
+    Capcité: string;
+    R25: number;
+    R50: number;
+    R75: number;
+    R100: number;
+    R125: number;
+} | {
+    Type: string;
+    DistMin: number;
+    DistMax: number;
+    CapMin: number;
+    CapMax: number;
+    Tarifs: number;
+    __EMPTY: null;
+    __EMPTY_1: null;
+    __EMPTY_2: null;
+    Nature: null;
+    Capcité: null;
+    R25: null;
+    R50: null;
+    R75: null;
+    R100: null;
+    R125: null;
+})[];

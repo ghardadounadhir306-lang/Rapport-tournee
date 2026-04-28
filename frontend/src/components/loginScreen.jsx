@@ -24,7 +24,7 @@ export default function LoginScreen({ loginForm, setLoginForm, onLogin }) {
         setError(data?.message ?? 'Identifiant ou mot de passe incorrect.')
         return
       }
-      onLogin(data.role)
+      onLogin(data)
     } catch {
       setError('Impossible de joindre le serveur. Vérifiez votre connexion.')
     } finally {

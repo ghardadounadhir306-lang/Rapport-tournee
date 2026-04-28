@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react'
 import { apiUrl } from '../utils/apiBase'
+import { transportRowToListItem } from '../utils/transportRowToListItem'
 
-export default function DashboardPage({ tms, list, activeFilterChips, hasSelectedTournee, alerts = [] }) {
+export default function DashboardPage({
+  tms,
+  list,
+  activeFilterChips,
+  hasSelectedTournee,
+  alerts = [],
+  onSelectTournee,
+}) {
   const alertCount = alerts.filter((a) => a.severity === 'ALERTE' || a.severity === 'BLOQUANT').length
   const [transportRows, setTransportRows] = useState([])
   const [transportLoading, setTransportLoading] = useState(true)
   const [transportError, setTransportError] = useState('')
+  const [fallbackList, setFallbackList] = useState([])
+  const [fallbackLoading, setFallbackLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -22,12 +32,14 @@ export default function DashboardPage({ tms, list, activeFilterChips, hasSelecte
       })
       .then((json) => {
         if (!mounted) return
-        setTransportRows(Array.isArray(json?.rows) ? json.rows : [])
+        const rows = Array.isArray(json?.rows) ? json.rows : []
+        setTransportRows(rows.filter((row) => String(row?.states ?? '') === 'done'))
       })
       .catch((err) => {
         if (!mounted) return
         setTransportRows([])
-        setTransportError(err?.message || 'Erreur chargement transport_data')
+        setTransportError('')
+        console.error('dashboard transport_data load failed:', err)
       })
       .finally(() => {
         if (mounted) setTransportLoading(false)
@@ -38,9 +50,46 @@ export default function DashboardPage({ tms, list, activeFilterChips, hasSelecte
     }
   }, [])
 
+  useEffect(() => {
+    if (Array.isArray(list) && list.length > 0) {
+      setFallbackList([])
+      setFallbackLoading(false)
+      return
+    }
+
+    let mounted = true
+    setFallbackLoading(true)
+    fetch(apiUrl('/api/tms'))
+      .then(async (res) => {
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          const msg = typeof json?.message === 'string' ? json.message : 'Erreur chargement des tournées'
+          throw new Error(msg)
+        }
+        return json
+      })
+      .then((json) => {
+        if (!mounted) return
+        setFallbackList(Array.isArray(json?.list) ? json.list : [])
+      })
+      .catch(() => {
+        if (!mounted) return
+        setFallbackList([])
+      })
+      .finally(() => {
+        if (mounted) setFallbackLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [list])
+
+  const recentList = Array.isArray(list) && list.length > 0 ? list : fallbackList
+
   const stats = [
     { label: 'Total Tournées',    value: tms?.entriesCount ?? '—', icon: '🚚', color: '#f97316' },
-    { label: 'Tournées Affichées',value: list.length,              icon: '📋', color: '#3b82f6' },
+    { label: 'Tournées Affichées',value: recentList.length,        icon: '📋', color: '#3b82f6' },
     { label: 'Filtres Actifs',    value: activeFilterChips.length, icon: '🔍', color: '#8b5cf6' },
     { label: 'Sélectionnées',     value: hasSelectedTournee ? 1 : 0, icon: '✅', color: '#10b981' },
     { label: 'Alertes actives',   value: alertCount,               icon: '⚠️', color: alertCount ? '#dc2626' : '#10b981' },
@@ -74,7 +123,11 @@ export default function DashboardPage({ tms, list, activeFilterChips, hasSelecte
           <div style={{ background: '#f8fafc', padding: '15px', borderBottom: '1px solid #e5e7eb', fontWeight: 700, color: '#1e293b' }}>
             DERNIÈRES TOURNÉES IMPORTÉES
           </div>
-          {list.length === 0 ? (
+          {fallbackLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+              Chargement des tournées...
+            </div>
+          ) : recentList.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
               Aucune donnée disponible. Importez un fichier Excel via l'API.
             </div>
@@ -88,7 +141,7 @@ export default function DashboardPage({ tms, list, activeFilterChips, hasSelecte
                 </tr>
               </thead>
               <tbody>
-                {list.slice(0, 10).map((item) => (
+                {recentList.slice(0, 10).map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '10px 14px', fontWeight: '600', color: '#f97316' }}>{String(item.id).replace('tms-', '')}</td>
                     <td style={{ padding: '10px 14px', color: '#374151' }}>{item.wms || '---'}</td>
@@ -107,6 +160,11 @@ export default function DashboardPage({ tms, list, activeFilterChips, hasSelecte
         <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', marginTop: '20px' }}>
           <div style={{ background: '#f8fafc', padding: '15px', borderBottom: '1px solid #e5e7eb', fontWeight: 700, color: '#1e293b' }}>
             DONNÉES TRANSPORT_DATA (POSTGRES)
+            {typeof onSelectTournee === 'function' && (
+              <span style={{ display: 'block', marginTop: 6, fontSize: 12, fontWeight: 500, color: '#64748b' }}>
+                Cliquez une ligne pour ouvrir la fiche tournée (Km TH calculé depuis SITCODE → client via `client_pois`).
+              </span>
+            )}
           </div>
           {transportLoading ? (
             <div style={{ padding: '24px', color: '#64748b', fontSize: '13px' }}>Chargement...</div>
@@ -125,15 +183,27 @@ export default function DashboardPage({ tms, list, activeFilterChips, hasSelecte
                   </tr>
                 </thead>
                 <tbody>
-                  {transportRows.map((row, rowIndex) => (
-                    <tr key={row.id ?? rowIndex} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      {Object.keys(transportRows[0]).map((col) => (
-                        <td key={`${rowIndex}-${col}`} style={{ padding: '10px 14px', color: '#374151', verticalAlign: 'top' }}>
-                          {row?.[col] == null ? '---' : String(row[col])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {transportRows.map((row, rowIndex) => {
+                    const listItem = transportRowToListItem(row)
+                    const openTournee = listItem && typeof onSelectTournee === 'function'
+                    return (
+                      <tr
+                        key={row.id ?? rowIndex}
+                        style={{
+                          borderBottom: '1px solid #f1f5f9',
+                          cursor: openTournee ? 'pointer' : 'default',
+                        }}
+                        onClick={() => openTournee && onSelectTournee(listItem)}
+                        title={openTournee ? 'Ouvrir la tournée' : undefined}
+                      >
+                        {Object.keys(transportRows[0]).map((col) => (
+                          <td key={`${rowIndex}-${col}`} style={{ padding: '10px 14px', color: '#374151', verticalAlign: 'top' }}>
+                            {row?.[col] == null ? '---' : String(row[col])}
+                          </td>
+                        ))}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
