@@ -6,7 +6,7 @@ const EMPTY_FILTERS = {
   truck: '', driver: '', dep: '', prestation: '',
 }
 
-export function useTmsData() {
+export function useTmsData({ userZone } = {}) {
   const [tms, setTms] = useState(null)
   const [tmsFilters, setTmsFilters] = useState(EMPTY_FILTERS)
 
@@ -23,7 +23,12 @@ export function useTmsData() {
 
     const qs = queryParams.toString()
     const path = qs ? `/api/tms?${qs}` : '/api/tms'
-    fetch(apiUrl(path))
+
+    // Build headers — send user zone so backend filters data server-side
+    const headers = {}
+    if (userZone) headers['X-User-Zone'] = String(userZone).trim().toUpperCase()
+
+    fetch(apiUrl(path), { headers })
       .then((res) => res.json())
       .then((json) => setTms(json))
       .catch(() => setTms(null))
@@ -32,7 +37,7 @@ export function useTmsData() {
   useEffect(() => {
     const timer = setTimeout(fetchTmsData, 300)
     return () => clearTimeout(timer)
-  }, [tmsFilters])
+  }, [tmsFilters, userZone])
 
   const list = useMemo(() => tms?.list ?? [], [tms])
   const filteredList = list

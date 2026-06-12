@@ -1,0 +1,55 @@
+@startmindmap
+
+title Diagramme de Navigation - Plateforme Logistique R.Tournée
+
+skinparam backgroundColor #FFFFFF
+
+<style>
+mindmapDiagram {
+    node {
+        BackgroundColor #4472C4
+        FontColor #FFFFFF
+        FontSize 13
+        FontStyle bold
+        RoundCorner 15
+        Padding 10
+        MaximumWidth 200
+    }
+    rootNode {
+        BackgroundColor #FFFFFF
+        FontColor #1B3A5C
+        FontSize 14
+        FontStyle bold
+        LineColor #4472C4
+        LineThickness 2
+        RoundCorner 10
+    }
+    :depth(2) {
+        BackgroundColor #6A9BD2
+        FontColor #FFFFFF
+        FontSize 12
+    }
+}
+</style>
+
+* Plateforme\nLogistique\nR.Tournée
+** 🔐 Page de Connexion
+** 🚚 Tournées
+*** AZIZA
+*** DIVERS
+*** GIAS
+*** FLEG
+** 📊 Dashboard
+** 💰 Simulateur
+** 🎛️ Paramétrage
+*** Base Client POI
+*** Base Dépôts
+*** Base Camion
+*** Base Tarif
+** 📈 Optimisation
+** 🤖 IA Dashboard
+** ⚙️ Administration
+*** Gestion Utilisateurs
+*** Section Super Admin
+
+@endmindmap

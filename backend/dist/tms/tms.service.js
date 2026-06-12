@@ -377,121 +377,178 @@ let TmsService = class TmsService {
     }
     async saveFormData(id, body, ctx) {
         try {
-            let existing = await this.formDataRepo.findOne({ where: { id } });
-            if (!existing) {
-                existing = this.formDataRepo.create({ id, tms_id: id });
+            const tourneeKey = this.parseTourneeKey(id);
+            if (!tourneeKey) {
+                throw new common_1.BadRequestException('Identifiant tournée invalide');
             }
             const inputs = body.input_data || {};
-            existing.date = inputs.date || null;
-            existing.wms = inputs.wms || null;
-            existing.prestation = inputs.prestation || null;
-            existing.truck = inputs.truck || null;
-            existing.driver = inputs.driver || null;
-            existing.dep = inputs.dep || null;
-            existing.prestationId =
-                inputs.prestationId != null && String(inputs.prestationId).trim() !== ''
-                    ? String(inputs.prestationId).trim()
-                    : null;
-            existing.siteId =
-                inputs.siteId != null && String(inputs.siteId).trim() !== ''
-                    ? String(inputs.siteId).trim()
-                    : null;
-            existing.km_facture = inputs.kmFacture || null;
-            existing.marchandise = inputs.marchandise || null;
-            existing.conformite = inputs.conformite || null;
-            existing.observation = inputs.observation || null;
-            existing.h_depart = inputs.hDepart || null;
-            existing.km_depart = inputs.kmDepart || null;
-            existing.h_retour = inputs.hRetour || null;
-            existing.km_retour = inputs.kmRetour || null;
-            existing.km_dernier_client = inputs.kmDernierClient || null;
-            existing.total_palettes = inputs.totalPalettes || null;
-            existing.total_palettes_2 = inputs.totalPalettes2 || null;
-            existing.tournee_sec = inputs.tourneeSec || null;
-            existing.apres_midi = Boolean(inputs.apresMidi);
-            existing.inter_site = Boolean(inputs.interSite);
-            const toDec = (v) => {
-                if (v === '' || v === null || v === undefined)
-                    return null;
-                const n = Number(String(v).replace(',', '.'));
-                return Number.isFinite(n) ? n.toFixed(7) : null;
-            };
-            existing.gps_start_lat = toDec(inputs.gpsStartLat ?? inputs.gps_start_lat);
-            existing.gps_start_lng = toDec(inputs.gpsStartLng ?? inputs.gps_start_lng);
-            existing.gps_end_lat = toDec(inputs.gpsEndLat ?? inputs.gps_end_lat);
-            existing.gps_end_lng = toDec(inputs.gpsEndLng ?? inputs.gps_end_lng);
-            const tourneeKey = this.parseTourneeKey(id);
-            if (tourneeKey) {
-                await this.syncTransportDataDriverFromForm(tourneeKey, existing.driver);
-            }
             const rawRows = body.table_rows || [];
-            existing.table_rows = (await this.enrichTableRowsKmTh(id, rawRows, existing.siteId));
-            const siteForHistory = existing.siteId ?? (await this.resolveSitcodeForTmsFormId(id));
-            await this.tourLegKmHistory.recordSamples(id, siteForHistory, existing.table_rows);
-            const firstClientAfter = this.firstClientFromRows(existing.table_rows);
-            const kmMoyAvg = await this.tourLegKmHistory.getAverage(siteForHistory ?? undefined, firstClientAfter);
-            existing.km_moy =
-                kmMoyAvg != null
-                    ? this.fmtKmThUi(kmMoyAvg)
-                    : inputs.kmMoy != null && String(inputs.kmMoy).trim() !== ''
-                        ? String(inputs.kmMoy).trim()
-                        : null;
-            try {
-                const saved = await this.formDataRepo.save(existing);
-                await this.activity.log({
-                    action: 'FORM_SAVE',
-                    targetType: 'tms_form',
-                    targetId: id,
-                    details: {
-                        tms_id: saved.tms_id,
-                        date: saved.date,
-                        prestation: saved.prestation,
-                    },
-                    ip: ctx?.ip ?? null,
-                });
-                await this.anomalyEvaluation.evaluateAfterSave(id);
-                return saved;
+            const driver = this.asString(inputs.driver, 255);
+            const date = this.asDateOnly(inputs.date);
+            const truck = this.asString(inputs.truck, 255);
+            const dep = this.asString(inputs.dep, 64);
+            const siteId = this.asString(inputs.siteId, 64);
+            const marchandise = this.asString(inputs.marchandise, 128);
+            const hDepart = this.asString(inputs.hDepart, 32);
+            const kmDepart = this.asString(inputs.kmDepart, 64);
+            const hRetour = this.asString(inputs.hRetour, 32);
+            const kmRetour = this.asString(inputs.kmRetour, 64);
+            const kmDernierClient = this.asString(inputs.kmDernierClient, 64);
+            const totalPalettes = this.asInt(inputs.totalPalettes);
+            const kmTsp = this.asString(inputs.kmFacture, 64);
+            const KM_TOLERANCE = 20;
+            const _parseKm = (v) => {
+                if (v === null || v === undefined || v === '')
+                    return null;
+                const n = Number.parseFloat(String(v).trim().replace(',', '.'));
+                return Number.isFinite(n) && n > 0 ? n : null;
+            };
+            const kmReel = _parseKm(inputs.kmFacture);
+            const kmMoyen = _parseKm(inputs.kmMoy);
+            const kmRetourNum = _parseKm(inputs.kmRetour);
+            const kmDernierClientNum = _parseKm(inputs.kmDernierClient);
+            if (kmRetourNum !== null && kmDernierClientNum !== null && kmRetourNum <= kmDernierClientNum) {
+                throw new common_1.BadRequestException(`KM Retour incohérent avec le dernier client : ` +
+                    `KM Retour = ${kmRetourNum} km, KM dernier client = ${kmDernierClientNum} km. ` +
+                    `KM Retour doit être supérieur au KM dernier client.`);
             }
-            catch (e) {
-                if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('gps_')) {
-                    delete existing.gps_start_lat;
-                    delete existing.gps_start_lng;
-                    delete existing.gps_end_lat;
-                    delete existing.gps_end_lng;
-                    const saved = await this.formDataRepo.save(existing);
-                    await this.activity.log({
-                        action: 'FORM_SAVE',
-                        targetType: 'tms_form',
-                        targetId: id,
-                        details: { tms_id: saved.tms_id, date: saved.date, prestation: saved.prestation, strippedGps: true },
-                        ip: ctx?.ip ?? null,
-                    });
-                    await this.anomalyEvaluation.evaluateAfterSave(id);
-                    return saved;
+            if (kmReel !== null && kmMoyen !== null) {
+                const seuil = kmMoyen + KM_TOLERANCE;
+                if (kmReel > seuil) {
+                    throw new common_1.BadRequestException(`Kilométrage supérieur au seuil autorisé : ` +
+                        `KM réel = ${kmReel} km, KM moyen = ${kmMoyen} km, ` +
+                        `seuil max = ${seuil} km (tolérance ±${KM_TOLERANCE} km). ` +
+                        `Écart : +${(kmReel - seuil).toFixed(1)} km.`);
                 }
-                throw e;
             }
+            if (rawRows.length === 0) {
+                const existing = await this.tmsDbQuery(`SELECT 1 FROM transport_data WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($1)) LIMIT 1`, [tourneeKey]);
+                if (existing.length > 0) {
+                    await this.tmsDbQuery(`UPDATE transport_data SET
+               voydtd    = COALESCE($1,  voydtd),
+               salnom    = COALESCE($2,  salnom),
+               plamoti   = COALESCE($3,  plamoti),
+               tiecode   = COALESCE($4,  tiecode),
+               sitcode   = COALESCE($5,  sitcode),
+               chargement= COALESCE($6,  chargement),
+               voyhrd    = COALESCE($7,  voyhrd),
+               plakm1    = COALESCE($8,  plakm1),
+               voyhrf    = COALESCE($9,  voyhrf),
+               plakm2    = COALESCE($10, plakm2),
+               voypal    = COALESCE($11, voypal),
+               km_tsp    = COALESCE($12, km_tsp),
+               mdate     = NOW(),
+               updated_at= NOW()
+             WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($13))`, [date, driver, truck, dep, siteId, marchandise, hDepart, kmDepart, hRetour, kmRetour, totalPalettes, kmTsp, tourneeKey]);
+                }
+                else {
+                    await this.tmsDbQuery(`INSERT INTO transport_data (
+               voycle, voydtd, salnom, plamoti, tiecode, sitcode, chargement,
+               voyhrd, plakm1, voyhrf, plakm2, voypal, km_tsp,
+               cdate, mdate, updated_at
+             ) VALUES (
+               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+               NOW(), NOW(), NOW()
+             )`, [tourneeKey, date, driver, truck, dep, siteId, marchandise, hDepart, kmDepart, hRetour, kmRetour, totalPalettes, kmTsp]);
+                }
+            }
+            else {
+                for (const row of rawRows) {
+                    const clientCode = this.asString(row.client, 64);
+                    if (!clientCode)
+                        continue;
+                    const existing = await this.tmsDbQuery(`SELECT 1 FROM transport_data 
+             WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($1))
+               AND LOWER(TRIM(COALESCE(otdcode::text, ''))) = LOWER(TRIM($2))
+             LIMIT 1`, [tourneeKey, clientCode]);
+                    const arrivee = this.asString(row.arrivee, 32);
+                    const depart = this.asString(row.depart, 32);
+                    const kmArv = this.asString(row.kmArv, 64);
+                    const pal = this.asInt(row.pal);
+                    const um = this.asString(row.um, 64);
+                    if (existing.length > 0) {
+                        await this.tmsDbQuery(`UPDATE transport_data SET
+                 voydtd    = COALESCE($1,  voydtd),
+                 salnom    = COALESCE($2,  salnom),
+                 plamoti   = COALESCE($3,  plamoti),
+                 tiecode   = COALESCE($4,  tiecode),
+                 sitcode   = COALESCE($5,  sitcode),
+                 chargement= COALESCE($6,  chargement),
+                 voyhrd    = COALESCE($7,  voyhrd),
+                 plakm1    = COALESCE($8,  plakm1),
+                 voyhrf    = COALESCE($9,  voyhrf),
+                 plakm2    = COALESCE($10, plakm2),
+                 voypal    = COALESCE($11, voypal),
+                 km_tsp    = COALESCE($12, km_tsp),
+                 otskm2    = COALESCE($13, otskm2),
+                 entnbpal  = COALESCE($14, entnbpal),
+                 artcode   = COALESCE($15, artcode),
+                 mdate     = NOW(),
+                 updated_at= NOW()
+               WHERE LOWER(TRIM(COALESCE(voycle::text, ''))) = LOWER(TRIM($16))
+                 AND LOWER(TRIM(COALESCE(otdcode::text, ''))) = LOWER(TRIM($17))`, [date, driver, truck, dep, siteId, marchandise, hDepart, kmDepart, hRetour, kmRetour, totalPalettes, kmTsp, kmArv, pal, um, tourneeKey, clientCode]);
+                    }
+                    else {
+                        await this.tmsDbQuery(`INSERT INTO transport_data (
+                 voycle, otdcode, voydtd, salnom, plamoti, tiecode, sitcode, chargement,
+                 voyhrd, plakm1, voyhrf, plakm2, voypal, km_tsp,
+                 otskm2, entnbpal, artcode,
+                 cdate, mdate, updated_at
+               ) VALUES (
+                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                 $15, $16, $17,
+                 NOW(), NOW(), NOW()
+               )`, [tourneeKey, clientCode, date, driver, truck, dep, siteId, marchandise, hDepart, kmDepart, hRetour, kmRetour, totalPalettes, kmTsp, kmArv, pal, um]);
+                    }
+                }
+            }
+            const siteForHistory = siteId ?? (await this.resolveSitcodeForTmsFormId(id));
+            await this.tourLegKmHistory.recordSamples(id, siteForHistory, rawRows);
+            await this.activity.log({
+                action: 'FORM_SAVE_TO_TMS',
+                targetType: 'tms_form',
+                targetId: id,
+                details: { tms_id: tourneeKey, date, driver },
+                ip: ctx?.ip ?? null,
+            });
+            return {
+                id,
+                tms_id: id,
+                table_rows: rawRows,
+                tableRows: rawRows,
+                input_data: inputs,
+                formData: inputs,
+            };
         }
         catch (e) {
-            const sqlState = e?.sqlState ?? e?.driverError?.sqlState;
-            const errno = e?.errno ?? e?.driverError?.errno;
             const msg = String(e?.message ?? e?.driverError?.message ?? '');
-            if (e?.code === 'ER_NO_SUCH_TABLE' || sqlState === '42S02' || errno === 1146 || errno === 1932 || msg.includes('tms_form_data') && msg.includes("doesn't exist")) {
-                throw new common_1.BadRequestException("La table tms_form_data n'existe pas. Exécutez le patch SQL: backend/sql/patches/007_create_tms_form_data.sql");
+            if (msg.includes("transport_data") && msg.includes("doesn't exist")) {
+                throw new common_1.BadRequestException("La table transport_data n'existe pas dans TMS_DB.");
             }
             throw e;
         }
     }
-    async getData(query = {}) {
+    async getData(query = {}, userZone) {
         const hasFilters = Object.values(query).some((v) => v != null && String(v).trim() !== '');
         const take = this.listMaxRows();
+        const zone = userZone ? String(userZone).trim().toUpperCase() : null;
         let importRows = [];
         let importCount = 0;
         try {
-            [importCount, importRows] = await Promise.all([
-                this.tmsImportRowRepo.count(),
-                this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take }),
-            ]);
+            if (zone !== null) {
+                const [count, rows] = await Promise.all([
+                    this.tmsImportRowRepo.count({ where: { sitcode: zone } }),
+                    this.tmsImportRowRepo.find({ where: { sitcode: zone }, order: { id: 'DESC' }, take }),
+                ]);
+                importCount = count;
+                importRows = rows;
+            }
+            else {
+                [importCount, importRows] = await Promise.all([
+                    this.tmsImportRowRepo.count(),
+                    this.tmsImportRowRepo.find({ order: { id: 'DESC' }, take }),
+                ]);
+            }
         }
         catch (e) {
             if (e?.code === 'ER_BAD_FIELD_ERROR' && String(e?.message ?? '').includes('otsnumbdx')) {
@@ -502,7 +559,7 @@ let TmsService = class TmsService {
                 throw e;
             }
         }
-        const transportRows = await this.fetchTransportDataRows(take);
+        const transportRows = await this.fetchTransportDataRows(take, zone);
         const totalCount = importCount + transportRows.length;
         const transportList = this.buildListFromRows(transportRows, 'transport_data');
         const importList = this.buildListFromRows(importRows, 'tms_import_rows');
@@ -524,8 +581,9 @@ let TmsService = class TmsService {
             active: null,
         };
     }
-    async fetchTransportDataRows(limit) {
+    async fetchTransportDataRows(limit, zone) {
         try {
+            const zoneClause = zone ? `AND UPPER(TRIM(COALESCE(td.sitcode::text, ''))) = '${zone.replace(/'/g, "''")}'` : '';
             const rows = await this.tmsDbQuery(`SELECT ROW_NUMBER() OVER (ORDER BY otsnum DESC NULLS LAST) AS _rn,
              td.affcode, td.artcode, td.cdate, td.entnbpal, td.otdcode, td.otscontainer, td.otsetat,
              td.otskm2, td.otsnumbdx, td.ottmt, td.placha1i, td.plakm1, td.plakm2, td.plalib, td.plamoti,
@@ -537,6 +595,7 @@ let TmsService = class TmsService {
              td.mdate, td.sitechauff, td.sitecamion, td.salmemoe, td.otsnum, td.platouordre,
              td.salmobilite, td.km_tsp, td.toutrafcode, td.chargement, td.voydtf, td.otdhd, td.voymemo
         FROM transport_data td
+        WHERE 1=1 ${zoneClause}
         ORDER BY td.otsnum DESC NULLS LAST
          LIMIT ${limit}`);
             return rows.map((r) => ({
@@ -864,7 +923,7 @@ let TmsService = class TmsService {
         return {
             id: normalizedId,
             tms: tmsNumber,
-            wms: '0',
+            wms: null,
             date,
             site: (0, site_code_lookup_1.resolveSiteCodeForDisplay)(this.asString(row.sitcode)),
             truck: this.asString(row.plamoti) ?? null,
@@ -1119,15 +1178,17 @@ let TmsService = class TmsService {
             const kmDepart = this.parseNum(fd.km_depart);
             const kmDernierClient = this.parseNum(fd.km_dernier_client);
             const kmRetour = this.parseNum(fd.km_retour);
-            const kmReel = kmFacture != null
-                ? kmFacture
-                : kmDernierClient != null && kmDepart != null && kmDernierClient > kmDepart
-                    ? Math.round((kmDernierClient - kmDepart) * 100) / 100
-                    : null;
             const kmTheorique = tableRows.reduce((sum, row) => {
                 const v = Number(String(row?.kmTh ?? '').replace(',', '.'));
                 return sum + (Number.isFinite(v) && v > 0 ? v : 0);
             }, 0);
+            const roundKm = (v) => Math.round(v * 100) / 100;
+            const derivedDernier = (kmDepart != null && kmTheorique > 0) ? roundKm(kmDepart + kmTheorique) : null;
+            const effectiveDernier = (kmDernierClient != null && kmDernierClient > 0) ? kmDernierClient : derivedDernier;
+            const kmReel = kmFacture != null ? kmFacture
+                : (kmDepart != null && kmRetour != null && kmRetour > kmDepart) ? roundKm(kmRetour - kmDepart)
+                    : (kmDepart != null && effectiveDernier != null && effectiveDernier > kmDepart) ? roundKm(effectiveDernier - kmDepart)
+                        : (kmTheorique > 0 ? roundKm(kmTheorique) : null);
             const decalageKm = kmReel != null && kmTheorique > 0
                 ? Math.round((kmReel - kmTheorique) * 100) / 100
                 : null;

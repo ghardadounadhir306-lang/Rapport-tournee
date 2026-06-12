@@ -3,14 +3,14 @@ import { FixedSizeList } from 'react-window'
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 const COLUMNS = [
-  { label: 'N° WMS',     sub: '0',             gridCol: 'minmax(80px,  1.2fr)', key: 'wms'        },
-  { label: 'N° TMS',     sub: 'VOYCLE',        gridCol: 'minmax(90px,  1.5fr)', key: 'tms'        },
-  { label: 'DATE',       sub: 'CDATE',         gridCol: 'minmax(72px,  1fr)',   key: 'date'       },
-  { label: 'SITE',       sub: 'SITCODE',       gridCol: 'minmax(42px,  0.5fr)', key: 'site'       },
-  { label: 'CAMION',     sub: 'PLAMOTI',       gridCol: 'minmax(62px,  1fr)',   key: 'truck'      },
-  { label: 'CHAUFFEUR',  sub: 'SALNOM',        gridCol: 'minmax(72px,  1.2fr)', key: 'driver'     },
-  { label: 'DEP',        sub: 'TIECODE',       gridCol: 'minmax(38px,  0.5fr)', key: 'dep'        },
-  { label: 'PRESTATION', sub: 'SAISIE',        gridCol: 'minmax(80px,  1.5fr)', key: 'prestation' },
+  { label: 'N° WMS', sub: '0', gridCol: 'minmax(80px,  1.2fr)', key: 'wms' },
+  { label: 'N° TMS', sub: 'VOYCLE', gridCol: 'minmax(90px,  1.5fr)', key: 'tms' },
+  { label: 'DATE', sub: 'CDATE', gridCol: 'minmax(72px,  1fr)', key: 'date' },
+  { label: 'SITE', sub: 'SITCODE', gridCol: 'minmax(42px,  0.5fr)', key: 'site' },
+  { label: 'CAMION', sub: 'PLAMOTI', gridCol: 'minmax(62px,  1fr)', key: 'truck' },
+  { label: 'CHAUFFEUR', sub: 'SALNOM', gridCol: 'minmax(72px,  1.2fr)', key: 'driver' },
+  { label: 'DEP', sub: 'TIECODE', gridCol: 'minmax(38px,  0.5fr)', key: 'dep' },
+  { label: 'PRESTATION', sub: 'SAISIE', gridCol: 'minmax(80px,  1.5fr)', key: 'prestation' },
 ]
 
 const GRID_TEMPLATE = COLUMNS.map((c) => c.gridCol).join(' ')
@@ -21,9 +21,9 @@ const TMS_ORANGE = '#E8600A'
 // ─── Single virtual row ───────────────────────────────────────────────────────
 const VRow = React.memo(function VRow({ index, style, data }) {
   const { filteredList, selectedTmsId, onSelectItem } = data
-  const item   = filteredList[index]
+  const item = filteredList[index]
   const active = item.id === selectedTmsId
-  const even   = index % 2 === 0
+  const even = index % 2 === 0
 
   const cells = [
     item.wms,
@@ -93,7 +93,7 @@ export default function Sidebar({
   selectedTmsId,
   onSelectItem,
 }) {
-  const listRef      = useRef(null)
+  const listRef = useRef(null)
   const containerRef = useRef(null)
   const [listSize, setListSize] = useState({ height: 400, width: 800 })
 
@@ -189,7 +189,7 @@ export default function Sidebar({
                 transition: 'border-color 0.15s, background 0.15s',
               }}
               onFocus={(e) => { e.target.style.borderColor = '#f97316'; e.target.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.2)' }}
-              onBlur={(e)  => { e.target.style.borderColor = tmsFilters[key] ? '#f97316' : '#363b45'; e.target.style.boxShadow = 'none' }}
+              onBlur={(e) => { e.target.style.borderColor = tmsFilters[key] ? '#f97316' : '#363b45'; e.target.style.boxShadow = 'none' }}
             />
           ))}
         </div>

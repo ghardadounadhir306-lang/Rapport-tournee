@@ -4,12 +4,11 @@ import { apiUrl } from '../utils/apiBase'
 const PAGE_OPTIONS = [
   { key: 'TOURNEES', label: '🚚 Tournées' },
   { key: 'DASHBOARD', label: '📊 Dashboard' },
-  { key: 'CONFRONTATION', label: '⚖️ Confrontation' },
   { key: 'SIMULATEUR', label: '💰 Simulateur' },
   { key: 'PARAMETRAGE', label: '🎛️ Paramétrage' },
   { key: 'OPTIMISATION', label: '📈 Optimisation' },
   { key: 'ADMIN', label: '⚙️ Admin' },
-  { key: 'SUPER_ADMIN_TRIPS', label: '👑 super admin' },
+  { key: 'SUPER_ADMIN_TRIPS', label: '👑 Accès super admin' },
 ]
 
 const ALL_PAGE_KEYS = PAGE_OPTIONS.map((page) => page.key)
@@ -32,20 +31,22 @@ const ACTION_LABELS = {
 }
 
 export default function AdminPage() {
-  const [users, setUsers]       = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [sending, setSending]   = useState(false)
-  const [message, setMessage]   = useState(null) // { type: 'success'|'error', text }
+  const [users, setUsers] = useState([])
+  const [depots, setDepots] = useState([])  // list of { code, name } from API
+  const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [message, setMessage] = useState(null) // { type: 'success'|'error', text }
   const [activityLogs, setActivityLogs] = useState([])
   const [activityTotal, setActivityTotal] = useState(0)
   const [activityLoading, setActivityLoading] = useState(false)
   /** Set when /api/activity-logs fails (réseau, table manquante, 500…). Null = dernière requête OK. */
   const [activityLogError, setActivityLogError] = useState(null)
-  const [form, setForm]         = useState({
+  const [form, setForm] = useState({
     name: '',
     email: '',
     role: 'user',
     matricule: '',
+    zone: '',
     allowedPages: ['TOURNEES', 'DASHBOARD'],
   })
   const [logPage, setLogPage] = useState(1)
@@ -55,13 +56,33 @@ export default function AdminPage() {
   const loadUsers = async () => {
     setLoading(true)
     try {
-      const res  = await fetch(apiUrl('/api/users'))
+      const res = await fetch(apiUrl('/api/users'))
       const data = await res.json()
       setUsers(data.users ?? [])
     } catch {
       setMessage({ type: 'error', text: 'Erreur chargement utilisateurs' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // ── Load depots ─────────────────────────────────────────────
+  const loadDepots = async () => {
+    try {
+      const res = await fetch(apiUrl('/api/clients-poi/depots'))
+      if (!res.ok) return
+      const data = await res.json()
+      const items = Array.isArray(data?.items) ? data.items : []
+      const uniqueByCode = new Map()
+      items
+        .map((d) => ({ code: String(d.code ?? '').trim().toUpperCase(), name: d.nom ?? d.name ?? '' }))
+        .filter((d) => d.code)
+        .forEach((d) => {
+          if (!uniqueByCode.has(d.code)) uniqueByCode.set(d.code, d)
+        })
+      setDepots(Array.from(uniqueByCode.values()))
+    } catch {
+      // silent — zone select will just be empty
     }
   }
 
@@ -95,6 +116,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadUsers()
+    loadDepots()
     loadActivityLogs()
   }, [])
 
@@ -107,25 +129,27 @@ export default function AdminPage() {
     setSending(true)
     setMessage(null)
     try {
-      const res  = await fetch(apiUrl('/api/users'), {
+      const res = await fetch(apiUrl('/api/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:      form.name,
-          email:     form.email,
-          role:      form.role,
+          name: form.name,
+          email: form.email,
+          role: form.role,
           matricule: form.matricule || undefined,
+          zone: form.zone || null,
           allowedPages: form.allowedPages,
         }),
       })
       const data = await res.json()
-        if (res.ok) {
+      if (res.ok) {
         setMessage({ type: 'success', text: data.message })
         setForm({
           name: '',
           email: '',
           role: 'user',
           matricule: '',
+          zone: '',
           allowedPages: ['TOURNEES', 'DASHBOARD'],
         })
         loadUsers()
@@ -161,24 +185,26 @@ export default function AdminPage() {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
-          <div style={{ width: '60px', height: '60px', backgroundColor: '#fff7ed', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px' }}>
+          <div style={{ width: '60px', height: '60px', background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', boxShadow: '0 4px 14px rgba(249,115,22,0.12)' }}>
             👥
           </div>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px', color: '#1e293b' }}>GESTION DES UTILISATEURS</h2>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Créer des comptes et envoyer les accès par email</p>
+            <h2 style={{ margin: 0, fontSize: '22px', color: '#1e293b', fontWeight: 800, letterSpacing: '-0.01em' }}>GESTION DES UTILISATEURS</h2>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 500 }}>Créer des comptes et envoyer les accès par email</p>
           </div>
         </div>
 
         {/* Message */}
         {message && (
           <div style={{
-            padding: '12px 16px', borderRadius: '8px', marginBottom: '20px',
+            padding: '12px 16px', borderRadius: '12px', marginBottom: '20px',
             backgroundColor: message.type === 'success' ? '#f0fdf4' : '#fef2f2',
             border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`,
+            borderLeft: `4px solid ${message.type === 'success' ? '#22c55e' : '#ef4444'}`,
             color: message.type === 'success' ? '#166534' : '#991b1b',
             fontWeight: '600', fontSize: '13px',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           }}>
             <span>{message.type === 'success' ? '✅' : '❌'} {message.text}</span>
             <button onClick={() => setMessage(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>×</button>
@@ -186,20 +212,20 @@ export default function AdminPage() {
         )}
 
         {/* Create form */}
-        <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '24px', marginBottom: '30px' }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '15px', color: '#1e293b', fontWeight: '800' }}>
+        <div style={{ background: 'linear-gradient(180deg, #f8fafc, #fff)', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', marginBottom: '30px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '15px', color: '#1e293b', fontWeight: '800', letterSpacing: '-0.01em' }}>
             ➕ CRÉER UN NOUVEAU COMPTE
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 130px 130px 140px', gap: '12px', alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 130px 130px 160px 140px', gap: '12px', alignItems: 'end' }}>
 
             <div>
-              <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>Nom complet</label>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Nom complet</label>
               <input
                 type="text"
                 placeholder="Ex: Ahmed Ben Ali"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s', fontFamily: 'inherit' }}
               />
             </div>
 
@@ -235,28 +261,53 @@ export default function AdminPage() {
                     ...prev,
                     role,
                     allowedPages:
-                        role === 'super_admin'
-                          ? [...ALL_PAGE_KEYS]
-                          : prev.allowedPages.filter((p) => p !== 'SUPER_ADMIN_TRIPS'),
+                      role === 'admin'
+                        ? prev.allowedPages
+                        : role === 'responsable'
+                          ? ['DASHBOARD']
+                          : ['TOURNEES', 'DASHBOARD'],
                   }))
                 }}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', background: '#fff' }}
               >
                 <option value="user">👤 User</option>
+                <option value="responsable">🛡 Responsable</option>
                 <option value="admin">🔐 Admin</option>
-                <option value="super_admin">👑 super admin</option>
               </select>
+            </div>
+
+            {/* Zone / Dépôt select */}
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>Zone / Dépôt</label>
+              <select
+                value={form.zone}
+                onChange={(e) => setForm({ ...form, zone: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${form.zone ? '#f97316' : '#d1d5db'}`, fontSize: '13px', outline: 'none', background: form.zone ? '#fff7ed' : '#fff', fontWeight: form.zone ? '700' : '400' }}
+              >
+                <option value="">🌍 Toutes les zones (admin)</option>
+                {depots.length === 0 && <option disabled>Chargement des dépôts…</option>}
+                {depots.map(d => (
+                  <option key={d.code} value={d.code}>
+                    📍 {d.code}{d.name ? ` — ${d.name}` : ''}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px' }}>
+                {form.zone ? `Restreint à ${form.zone}` : 'Aucune restriction (voit tout)'}
+              </div>
             </div>
 
             <button
               onClick={handleCreate}
               disabled={sending}
               style={{
-                padding: '10px 16px', borderRadius: '8px', border: 'none',
-                backgroundColor: sending ? '#fed7aa' : '#f97316',
+                padding: '10px 18px', borderRadius: '10px', border: 'none',
+                background: sending ? 'linear-gradient(135deg, #fdba74, #fed7aa)' : 'linear-gradient(135deg, #f97316, #ea580c)',
                 color: 'white', fontWeight: '800', fontSize: '13px',
                 cursor: sending ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                boxShadow: sending ? 'none' : '0 6px 20px rgba(249,115,22,0.3)',
+                transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)',
               }}
             >
               {sending ? '⏳ Envoi...' : '📧 CRÉER & ENVOYER'}
@@ -268,7 +319,11 @@ export default function AdminPage() {
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {PAGE_OPTIONS.map((page) => {
-                const disabled = form.role !== 'super_admin' && page.key === 'SUPER_ADMIN_TRIPS'
+                const disabled = form.role === 'user'
+                  ? page.key !== 'TOURNEES' && page.key !== 'DASHBOARD'
+                  : form.role === 'responsable'
+                    ? page.key !== 'DASHBOARD'
+                    : form.role !== 'admin' && (page.key === 'ADMIN' || page.key === 'SUPER_ADMIN_TRIPS')
                 const checked = form.allowedPages.includes(page.key)
                 return (
                   <label
@@ -297,7 +352,23 @@ export default function AdminPage() {
                           const set = new Set(prev.allowedPages)
                           if (isOn) set.add(page.key)
                           else set.delete(page.key)
-                          if (prev.role !== 'super_admin') set.delete('SUPER_ADMIN_TRIPS')
+                            if (prev.role === 'user') {
+                              set.delete('SIMULATEUR')
+                              set.delete('PARAMETRAGE')
+                              set.delete('OPTIMISATION')
+                              set.delete('ADMIN')
+                              set.delete('SUPER_ADMIN_TRIPS')
+                            } else if (prev.role === 'responsable') {
+                              set.delete('TOURNEES')
+                              set.delete('SIMULATEUR')
+                              set.delete('PARAMETRAGE')
+                              set.delete('OPTIMISATION')
+                              set.delete('ADMIN')
+                              set.delete('SUPER_ADMIN_TRIPS')
+                            } else if (prev.role !== 'admin') {
+                            set.delete('ADMIN')
+                            set.delete('SUPER_ADMIN_TRIPS')
+                          }
                           return { ...prev, allowedPages: Array.from(set) }
                         })
                       }}
@@ -326,19 +397,27 @@ export default function AdminPage() {
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr style={{ background: '#f1f5f9' }}>
-                  {['Nom', 'Email', 'Matricule', 'Pages', 'Rôle', 'Créé le', ''].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e5e7eb' }}>{h}</th>
+                <tr style={{ background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)' }}>
+                  {['Nom', 'Email', 'Matricule', 'Zone', 'Pages', 'Rôle', 'Créé le', ''].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '800', color: '#475569', borderBottom: '2px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {users.map(user => (
-                  <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
                     <td style={{ padding: '12px 14px', fontWeight: '600', color: '#1e293b' }}>{user.name}</td>
                     <td style={{ padding: '12px 14px', color: '#64748b' }}>{user.email}</td>
                     <td style={{ padding: '12px 14px', color: '#64748b', fontFamily: 'monospace', fontSize: '12px' }}>
                       {user.matricule || <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      {user.zone
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'linear-gradient(135deg,#fff7ed,#fed7aa)', color: '#c2410c', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', border: '1px solid #fdba74' }}>📍 {user.zone}</span>
+                        : <span style={{ color: '#d1d5db', fontSize: '12px' }}>—</span>}
                     </td>
                     <td style={{ padding: '12px 14px', color: '#64748b', fontSize: '11px' }}>
                       {Array.isArray(user.allowedPages) && user.allowedPages.length > 0
@@ -346,13 +425,19 @@ export default function AdminPage() {
                         : <span style={{ color: '#d1d5db' }}>—</span>}
                     </td>
                     <td style={{ padding: '12px 14px' }}>
+                      {(() => {
+                        const isAdmin = user.role === 'admin' || user.role === 'super_admin'
+                        const isResponsible = user.role === 'responsable'
+                        return (
                       <span style={{
                         padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                          backgroundColor: user.role === 'super_admin' ? '#fce7f3' : user.role === 'admin' ? '#fef3c7' : '#eff6ff',
-                          color: user.role === 'super_admin' ? '#9d174d' : user.role === 'admin' ? '#92400e' : '#1e40af',
+                        backgroundColor: isAdmin ? '#fef3c7' : isResponsible ? '#dcfce7' : '#eff6ff',
+                        color: isAdmin ? '#92400e' : isResponsible ? '#166534' : '#1e40af',
                       }}>
-                          {user.role === 'super_admin' ? '👑 super admin' : user.role === 'admin' ? '🔐 Admin' : '👤 User'}
+                        {isAdmin ? '🔐 Admin' : isResponsible ? '🛡 Responsable' : '👤 User'}
                       </span>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '12px 14px', color: '#94a3b8', fontSize: '12px' }}>
                       {new Date(user.created_at).toLocaleDateString('fr-FR')}
@@ -422,9 +507,9 @@ export default function AdminPage() {
             <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc' }}>
+                  <tr style={{ background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)' }}>
                     {['Date / heure', 'Action', 'Acteur', 'Cible', 'IP', 'Détails'].map((h) => (
-                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '800', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         {h}
                       </th>
                     ))}
@@ -432,7 +517,10 @@ export default function AdminPage() {
                 </thead>
                 <tbody>
                   {activityLogs.slice((logPage - 1) * logsPerPage, logPage * logsPerPage).map((row) => (
-                    <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
                       <td style={{ padding: '10px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>
                         {new Date(row.created_at).toLocaleString('fr-FR')}
                       </td>

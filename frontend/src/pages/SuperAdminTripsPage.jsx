@@ -245,29 +245,38 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
 
   return (
     <section className="content" style={{ padding: '16px 20px 32px' }}>
-      <div className="card" style={{ marginBottom: 16, padding: '20px 22px' }}>
+      <div className="card" style={{ marginBottom: 16, padding: '20px 22px', borderTop: '4px solid #f97316' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: 10 }}>
-          <div style={{ fontSize: '30px', backgroundColor: '#fff7ed', padding: '10px', borderRadius: '12px' }}>🧑‍✈️</div>
+          <div style={{ fontSize: '30px', background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', padding: '12px', borderRadius: '14px', boxShadow: '0 4px 14px rgba(249,115,22,0.12)' }}>🧑‍✈️</div>
           <div>
-            <h2 className="title-orange" style={{ margin: 0 }}>SUPER ADMIN</h2>
-            <p style={{ margin: '4px 0 0', color: dk('#94a3b8', '#64748b'), fontSize: '13px' }}>
+            <h2 className="title-orange" style={{ margin: 0, letterSpacing: '-0.01em' }}>SUPER ADMIN</h2>
+            <p style={{ margin: '4px 0 0', color: dk('#94a3b8', '#64748b'), fontSize: '13px', fontWeight: 500 }}>
               Section réservée au super admin pour créer un nouveau trip chauffeur dans transport_data.
             </p>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 14 }}>
-          <div style={{ padding: 14, borderRadius: 12, border: '1px solid #e5e7eb', background: '#f8fafc' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#1e293b' }}>{stats.total}</div>
+          <div style={{ padding: 14, borderRadius: 14, border: '1px solid #e2e8f0', background: '#f8fafc', borderLeft: '4px solid #1e293b', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', cursor: 'default' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#1e293b', letterSpacing: '-0.02em' }}>{stats.total}</div>
           </div>
-          <div style={{ padding: 14, borderRadius: 12, border: '1px solid #e5e7eb', background: '#fffbeb' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#92400e', textTransform: 'uppercase' }}>Pending</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#b45309' }}>{stats.pending}</div>
+          <div style={{ padding: 14, borderRadius: 14, border: '1px solid #e2e8f0', background: '#fffbeb', borderLeft: '4px solid #f59e0b', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', cursor: 'default' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(245,158,11,0.12)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#b45309', letterSpacing: '-0.02em' }}>{stats.pending}</div>
           </div>
-          <div style={{ padding: 14, borderRadius: 12, border: '1px solid #e5e7eb', background: '#ecfdf5' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#065f46', textTransform: 'uppercase' }}>Done</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#047857' }}>{stats.done}</div>
+          <div style={{ padding: 14, borderRadius: 14, border: '1px solid #e2e8f0', background: '#ecfdf5', borderLeft: '4px solid #22c55e', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', cursor: 'default' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(34,197,94,0.12)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Done</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#047857', letterSpacing: '-0.02em' }}>{stats.done}</div>
           </div>
         </div>
       </div>
@@ -275,35 +284,35 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
       <div className="card" style={{ padding: 22, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, color: '#1e293b' }}>Créer un trip chauffeur</h3>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>
+            <h3 style={{ margin: 0, fontSize: 16, color: '#1e293b', fontWeight: 800, letterSpacing: '-0.01em' }}>Créer un trip chauffeur</h3>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b', fontWeight: 500 }}>
               Les champs sont envoyés vers la table transport_data.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={resetForm} style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>
+            <button type="button" onClick={resetForm} style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
               Réinitialiser
             </button>
             <button
               type="button"
               onClick={saveTrip}
               disabled={saving}
-              style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: saving ? '#fdba74' : '#f97316', color: '#fff', fontWeight: 800, cursor: saving ? 'wait' : 'pointer' }}
+              style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: saving ? 'linear-gradient(135deg, #fdba74, #fed7aa)' : 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: saving ? 'wait' : 'pointer', boxShadow: saving ? 'none' : '0 6px 20px rgba(249,115,22,0.3)', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }}
             >
               {saving ? '⏳ Enregistrement...' : '💾 Enregistrer'}
             </button>
           </div>
         </div>
 
-        {error && <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>{error}</div>}
-        {message && <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: 13 }}>{message}</div>}
+        {error && <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', color: '#991b1b', fontSize: 13, fontWeight: 600 }}>{error}</div>}
+        {message && <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderLeft: '4px solid #22c55e', color: '#166534', fontSize: 13, fontWeight: 600 }}>{message}</div>}
 
         <div style={{ display: 'grid', gap: 14 }}>
           {FIELD_GROUPS.map((group, index) => (
             <div key={index} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               {group.map((field) => (
                 <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{field.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{field.label}</span>
                   {field.key === 'salmemoe' ? (
                     <>
                       <input
@@ -311,7 +320,9 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
                         value={chauffeurSearch}
                         onChange={(e) => setChauffeurSearch(e.target.value)}
                         placeholder="Rechercher chauffeur (nom / CIN / tel)"
-                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, outline: 'none', marginBottom: 6 }}
+                        style={{ padding: '8px 10px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', marginBottom: 6, transition: 'all 0.2s', fontFamily: 'inherit' }}
+                        onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+                        onBlur={e => e.currentTarget.style.boxShadow = 'none'}
                       />
                       <select
                         value={form.selectedChauffeurId}
@@ -326,7 +337,9 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
                             salmobilite: chauffeur ? String(chauffeur.tel ?? '').trim() : prev.salmobilite,
                           }))
                         }}
-                        style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, outline: 'none', background: '#fff' }}
+                        style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', background: '#fff', transition: 'all 0.2s', fontFamily: 'inherit' }}
+                        onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+                        onBlur={e => e.currentTarget.style.boxShadow = 'none'}
                       >
                         <option value="">Sélectionner un chauffeur ({filteredChauffeurs.length})</option>
                         {filteredChauffeurs.map((c) => (
@@ -343,7 +356,9 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
                         value={camionSearch}
                         onChange={(e) => setCamionSearch(e.target.value)}
                         placeholder="Rechercher camion"
-                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, outline: 'none', marginBottom: 6 }}
+                        style={{ padding: '8px 10px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', marginBottom: 6, transition: 'all 0.2s', fontFamily: 'inherit' }}
+                        onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+                        onBlur={e => e.currentTarget.style.boxShadow = 'none'}
                       />
                       <select
                         value={form.selectedCamionId}
@@ -356,7 +371,9 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
                             sitecamion: camion ? String(camion.camion ?? '').trim() : '',
                           }))
                         }}
-                        style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, outline: 'none', background: '#fff' }}
+                        style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', background: '#fff', transition: 'all 0.2s', fontFamily: 'inherit' }}
+                        onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+                        onBlur={e => e.currentTarget.style.boxShadow = 'none'}
                       >
                         <option value="">Sélectionner un camion ({filteredCamions.length})</option>
                         {filteredCamions.map((c) => (
@@ -372,7 +389,9 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
                       value={form[field.key]}
                       onChange={(e) => setField(field.key, e.target.value)}
                       placeholder={field.placeholder}
-                      style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, outline: 'none' }}
+                      style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', transition: 'all 0.2s', fontFamily: 'inherit' }}
+                      onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+                      onBlur={e => e.currentTarget.style.boxShadow = 'none'}
                     />
                   )}
                 </label>
@@ -382,34 +401,38 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 12 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Chargement</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Chargement</span>
               <input
                 type="text"
                 value={form.chargement}
                 onChange={(e) => setField('chargement', e.target.value)}
                 placeholder="Type de chargement"
-                style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, outline: 'none' }}
+                style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', transition: 'all 0.2s', fontFamily: 'inherit' }}
+                onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+                onBlur={e => e.currentTarget.style.boxShadow = 'none'}
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>État</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>État</span>
               <input
                 type="text"
                 value="pending"
                 disabled
-                style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, outline: 'none', background: '#f8fafc', color: '#475569' }}
+                style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', background: '#f8fafc', color: '#475569', fontFamily: 'inherit' }}
               />
             </label>
           </div>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Mémo</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mémo</span>
             <textarea
               rows={4}
               value={form.voymemo}
               onChange={(e) => setField('voymemo', e.target.value)}
               placeholder="Commentaires sur le trip"
-              style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, outline: 'none', resize: 'vertical' }}
+              style={{ padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'vertical', transition: 'all 0.2s', fontFamily: 'inherit' }}
+              onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)'}
+              onBlur={e => e.currentTarget.style.boxShadow = 'none'}
             />
           </label>
         </div>
@@ -418,18 +441,18 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
       <div className="card" style={{ padding: 22 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, color: '#1e293b' }}>Derniers trips</h3>
+            <h3 style={{ margin: 0, fontSize: 16, color: '#1e293b', fontWeight: 800, letterSpacing: '-0.01em' }}>Derniers trips</h3>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>Chargés depuis transport_data.</p>
           </div>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>{loading ? 'Chargement...' : `${drafts.length} lignes`}</div>
         </div>
 
-        <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 12 }}>
+        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
+              <tr style={{ background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)' }}>
                 {['Aff', 'OTD', 'TMS', 'Chauffeur', 'Date', 'Heure', 'État'].map((header) => (
-                  <th key={header} style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', borderBottom: '1px solid #e5e7eb', fontWeight: 800 }}>
+                  <th key={header} style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', borderBottom: '2px solid #e2e8f0', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     {header}
                   </th>
                 ))}
@@ -444,22 +467,27 @@ export default function SuperAdminTripsPage({ theme, userDisplayName = '' }) {
                 </tr>
               ) : (
                 drafts.map((row, index) => (
-                  <tr key={`${row.id ?? row.voycle ?? index}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={`${row.id ?? row.voycle ?? index}`} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
                     <td style={{ padding: '10px 12px', color: '#374151' }}>{row.affcode || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#374151' }}>{row.otdcode || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#374151' }}>{row.toucode || row.voycle || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: '#374151' }}>{row.salmemoe || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: '#374151', fontWeight: 600 }}>{row.salmemoe || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#374151' }}>{row.voydtd || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#374151' }}>{row.voyhrd || '—'}</td>
                     <td style={{ padding: '10px 12px' }}>
                       <span
                         style={{
                           display: 'inline-flex',
-                          padding: '4px 10px',
+                          padding: '4px 12px',
                           borderRadius: 999,
                           background: String(row.states ?? 'pending') === 'done' ? '#ecfdf5' : '#fff7ed',
                           color: String(row.states ?? 'pending') === 'done' ? '#047857' : '#c2410c',
                           fontWeight: 800,
+                          fontSize: 11,
+                          letterSpacing: '0.02em',
                         }}
                       >
                         {String(row.states ?? 'pending')}

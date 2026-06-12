@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ANOMALY_TYPE_CODES } from '../anomalies/anomaly-type-codes';
 import { Anomaly } from '../anomalies/entities/anomaly.entity';
 import { TmsFormData } from '../tms/entities/tms-form-data.entity';
 import { GpsService } from '../gps/gps.service';
+import { MailService } from '../mail/mail.service';
 
 export type AlertSeverity = 'INFO' | 'ALERTE' | 'BLOQUANT';
 
@@ -29,14 +30,23 @@ function severityForAnomalyTypeCode(code: string): AlertSeverity {
   return 'ALERTE';
 }
 
+/** Destination for alert notifications */
+const ALERT_NOTIFY_EMAIL = 'ghardadounadhir306@gmail.com';
+
 @Injectable()
 export class AlertsService {
+  private readonly logger = new Logger(AlertsService.name);
+
+  /** Dedup: track last sent alert fingerprint to avoid spam */
+  private lastSentFingerprint = '';
+
   constructor(
     @InjectRepository(TmsFormData)
     private readonly formRepo: Repository<TmsFormData>,
     @InjectRepository(Anomaly)
     private readonly anomalyRepo: Repository<Anomaly>,
     private readonly gpsService: GpsService,
+    private readonly mailService: MailService,
   ) {}
 
   private async loadPersistedAnomaliesAsAlerts(filters: {
@@ -158,18 +168,6 @@ export class AlertsService {
         }
       }
 
-      const truck = (data.truck ?? '').trim();
-      if (truck) {
-        const hasRoute = await this.gpsService.hasRealRoute(id);
-        if (!hasRoute) {
-          alerts.push({
-            code: 'TOURNEE_SANS_GPS',
-            severity: 'ALERTE',
-            message: `Camion renseigné mais pas de trace GPS suffisante (minimum ${process.env.GPS_MIN_POINTS_REAL_ROUTE ?? '3'} points)`,
-            tmsFormId: id,
-          });
-        }
-      }
 
       if (!(data.marchandise ?? '').trim() && !codes.has(ANOMALY_TYPE_CODES.ABSENCE_LISTE_COLISAGE)) {
         alerts.push({
@@ -213,11 +211,104 @@ export class AlertsService {
     }
 
     const seen = new Set<string>();
-    return alerts.filter((a) => {
+    const deduped = alerts.filter((a) => {
       const k = `${a.code}|${a.tmsFormId ?? ''}|${a.message}`;
       if (seen.has(k)) return false;
       seen.add(k);
       return true;
     });
+
+    // ── Email notification ──────────────────────────────────────────────────
+    const significant = deduped.filter((a) => a.severity === 'ALERTE' || a.severity === 'BLOQUANT');
+    if (significant.length > 0) {
+      const fingerprint = significant.map((a) => `${a.code}|${a.tmsFormId ?? ''}|${a.message}`).sort().join(';');
+      if (fingerprint !== this.lastSentFingerprint) {
+        this.lastSentFingerprint = fingerprint;
+        this.sendAlertEmail(significant).catch((e) =>
+          this.logger.error('Failed to send alert email', e),
+        );
+      }
+    }
+
+    return deduped;
+  }
+
+  private async sendAlertEmail(alerts: OperationalAlert[]): Promise<void> {
+    if (!this.mailService.isConfigured()) {
+      this.logger.warn('SMTP not configured — skipping alert email');
+      return;
+    }
+
+    const now = new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' });
+    const sevColor = (s: AlertSeverity) =>
+      s === 'BLOQUANT' ? '#dc2626' : s === 'ALERTE' ? '#f97316' : '#2563eb';
+    const sevLabel = (s: AlertSeverity) =>
+      s === 'BLOQUANT' ? '🚨 BLOQUANT' : s === 'ALERTE' ? '⚠️ ALERTE' : 'ℹ️ INFO';
+
+    const rows = alerts
+      .map(
+        (a) => `
+        <tr>
+          <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9">
+            <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:${sevColor(a.severity)}">${sevLabel(a.severity)}</span>
+          </td>
+          <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b">${a.message}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#64748b">${a.tmsFormId ?? '—'}</td>
+        </tr>`,
+      )
+      .join('');
+
+    const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:40px auto">
+    <tr>
+      <td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:32px 40px;border-radius:12px 12px 0 0">
+        <table width="100%">
+          <tr>
+            <td>
+              <div style="font-weight:900;font-size:24px;color:#fff;letter-spacing:-1px">🚚 LUMIERE LOGISTIQUE</div>
+              <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">Système d'alertes opérationnelles</div>
+            </td>
+            <td align="right">
+              <div style="background:rgba(255,255,255,0.2);border-radius:8px;padding:8px 14px;color:#fff;font-size:12px;font-weight:600">${alerts.length} alerte${alerts.length > 1 ? 's' : ''}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#fff;padding:0">
+        <table width="100%" style="border-collapse:collapse">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:12px 14px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Sévérité</th>
+              <th style="padding:12px 14px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Message</th>
+              <th style="padding:12px 14px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Tournée</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#f8fafc;padding:20px 40px;border-radius:0 0 12px 12px;border-top:1px solid #e2e8f0">
+        <p style="margin:0;font-size:12px;color:#94a3b8">Généré automatiquement le <strong>${now}</strong> — LUMIERE Logistique TMS</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    await this.mailService.sendMail({
+      to: ALERT_NOTIFY_EMAIL,
+      subject: `🚨 TMS — ${alerts.length} alerte${alerts.length > 1 ? 's' : ''} opérationnelle${alerts.length > 1 ? 's' : ''} (${now})`,
+      html,
+      text: alerts.map((a) => `[${a.severity}] ${a.message} (${a.tmsFormId ?? '—'})`).join('\n'),
+    });
+
+    this.logger.log(`Alert email sent to ${ALERT_NOTIFY_EMAIL} (${alerts.length} alerts)`);
   }
 }

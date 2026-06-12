@@ -1,0 +1,56 @@
+@startuml Diagramme de Séquence - Authentification
+
+title Diagramme de Séquence - Authentification
+
+skinparam backgroundColor #FFFFFF
+skinparam sequence {
+    ArrowColor #4472C4
+    ActorBorderColor #2B579A
+    LifeLineBorderColor #4472C4
+    LifeLineBackgroundColor #F0F4FA
+    ParticipantBorderColor #2B579A
+    ParticipantBackgroundColor #4472C4
+    ParticipantFontColor #FFFFFF
+    ParticipantFontStyle bold
+}
+
+actor "Utilisateur" as user
+participant "LoginScreen" as login
+participant "UsersController" as ctrl
+participant "UsersService" as svc
+database "AppUser\n(PostgreSQL)" as db
+
+user -> login : Saisir email + mot de passe
+activate login
+
+login -> ctrl : POST /api/users/login\n{email, password}
+activate ctrl
+
+ctrl -> svc : login(email, password)
+activate svc
+
+svc -> db : findOne({email})
+activate db
+db --> svc : AppUser | null
+deactivate db
+
+alt Utilisateur trouvé + mot de passe correct
+
+    svc -> svc : bcrypt.compare() = OK
+    svc --> ctrl : {role, name, email, allowedPages}
+    ctrl --> login : 200 OK
+    login --> user : ✅ Accès à l'application
+
+else Mot de passe incorrect ou utilisateur inconnu
+
+    svc --> ctrl : throw UnauthorizedException
+    ctrl --> login : 401 Unauthorized
+    login --> user : ❌ Identifiant ou mot de passe incorrect
+
+end
+
+deactivate svc
+deactivate ctrl
+deactivate login
+
+@enduml

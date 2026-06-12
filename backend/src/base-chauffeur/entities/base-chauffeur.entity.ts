@@ -5,6 +5,9 @@ export class BaseChauffeur {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: string;
 
+  @Column({ name: 'employee_id', type: 'varchar', length: 64 })
+  employeeId: string;
+
   @Column({ type: 'varchar', length: 255 })
   nom: string;
 

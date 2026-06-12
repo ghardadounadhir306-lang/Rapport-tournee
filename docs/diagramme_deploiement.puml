@@ -1,0 +1,45 @@
+@startuml Diagramme de Déploiement - R.Tournée
+
+title Diagramme de Déploiement Simplifié - R.Tournée
+
+skinparam backgroundColor #FEFEFE
+skinparam node {
+    BackgroundColor #E8F4FD
+    BorderColor #2196F3
+    FontSize 14
+}
+skinparam artifact {
+    BackgroundColor #FFF9C4
+    BorderColor #FFC107
+}
+skinparam database {
+    BackgroundColor #E8F5E9
+    BorderColor #4CAF50
+}
+
+' ===== Côté Client =====
+node "<<Poste Client>>\nNavigateur Web" as client {
+    artifact "React 19\n(Vite)" as react
+    artifact "Axios\n(HTTP Client)" as axios
+    artifact "Leaflet\n(Cartographie)" as leaflet
+}
+
+' ===== Côté Serveur =====
+node "<<Serveur Application>>\nDocker Container\nPort 3000" as server {
+    artifact "NestJS 11\n(API REST)" as nest
+    artifact "TypeORM\n(ORM)" as typeorm
+    artifact "Swagger\n(Documentation API)" as swagger
+}
+
+' ===== Côté Base de Données =====
+node "<<Serveur Base de Données>>\nDocker Container\nPort 5432" as dbserver {
+    database "PostgreSQL 16\nr_tournee" as db
+}
+
+' ===== Relations =====
+react --> axios
+axios --> nest : "HTTP / REST\nPort 3000"
+nest --> typeorm
+typeorm --> db : "TCP\nPort 5432"
+
+@enduml

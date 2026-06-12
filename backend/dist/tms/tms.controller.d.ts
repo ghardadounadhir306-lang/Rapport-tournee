@@ -3,13 +3,13 @@ import { TmsService } from './tms.service';
 export declare class TmsController {
     private readonly tmsService;
     constructor(tmsService: TmsService);
-    getTmsData(query: Record<string, string>): Promise<{
+    getTmsData(query: Record<string, string>, userZone?: string): Promise<{
         entriesCount: number;
         rowsCount: number;
         list: {
             id: string;
             tms: string | null;
-            wms: string;
+            wms: null;
             date: string | null;
             site: string | null;
             truck: string | null;
@@ -164,7 +164,14 @@ export declare class TmsController {
             updatedAt: Date;
         }[];
     }>;
-    saveFormData(id: string, body: any, req: Request): Promise<import("./entities/tms-form-data.entity").TmsFormData>;
+    saveFormData(id: string, body: any, req: Request): Promise<{
+        id: string;
+        tms_id: string;
+        table_rows: any;
+        tableRows: any;
+        input_data: any;
+        formData: any;
+    }>;
     importTmsExcel(file: {
         buffer: Buffer;
     } | undefined, req: Request): Promise<{

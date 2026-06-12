@@ -1,0 +1,77 @@
+@startuml Diagramme de Composants Backend - R.Tournée
+
+title Diagramme de Composants Backend - R.Tournée
+
+left to right direction
+
+skinparam backgroundColor #FFFFFF
+skinparam component {
+    BackgroundColor #4472C4
+    FontColor #FFFFFF
+    FontStyle bold
+    FontSize 13
+    BorderColor #2B579A
+    RoundCorner 15
+}
+skinparam package {
+    BackgroundColor #F0F4FA
+    BorderColor #4472C4
+    FontColor #1B3A5C
+    FontStyle bold
+    FontSize 14
+}
+
+' ========== 1. Point d'entrée ==========
+component [main.ts  NestJS] as main #2B579A
+
+' ========== 2. Module Racine ==========
+component [AppModule] as appModule #2B579A
+
+' ========== 3. Modules Métier ==========
+package "Modules Métier" {
+    component [TmsModule] as tms
+    component [TransportDataModule] as transport
+    component [DashboardModule] as dashboard
+    component [ClientsPoiModule] as poi
+    component [BaseCamionModule] as camion
+    component [BaseTarifModule] as tarif
+    component [AlertsModule] as alerts
+    component [AnomaliesModule] as anomalies
+}
+
+' ========== 4. Modules Support ==========
+package "Modules Support" {
+    component [UsersModule] as users #ED7D31
+    component [AiModule] as ai #ED7D31
+    component [MailModule] as mail #ED7D31
+    component [HealthModule] as health #ED7D31
+}
+
+' ========== 5. Base de données ==========
+component [DatabaseModule  TypeORM] as dbModule #70AD47
+
+' ========== 6. BDD ==========
+database "PostgreSQL 16\nr_tournee :5432" as db
+
+' ========== Relations verticales ==========
+main --> appModule
+
+appModule --> tms
+appModule --> transport
+appModule --> dashboard
+appModule --> poi
+appModule --> camion
+appModule --> tarif
+appModule --> alerts
+appModule --> anomalies
+
+appModule --> users
+appModule --> ai
+appModule --> mail
+appModule --> health
+
+appModule --> dbModule
+
+dbModule --> db
+
+@enduml

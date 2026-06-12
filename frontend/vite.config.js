@@ -8,6 +8,8 @@ const apiTarget = process.env.VITE_API_URL || 'http://localhost:3001'
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5173,       // always start on 5173
+    strictPort: false, // if 5173 is taken, increment rather than crash
     proxy: {
       '/api': {
         target: apiTarget,

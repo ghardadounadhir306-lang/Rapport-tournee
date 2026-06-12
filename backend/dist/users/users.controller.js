@@ -41,10 +41,8 @@ let UsersController = class UsersController {
             role: body.role ?? 'user',
             matricule: body.matricule ?? '',
             allowedPages: body.allowedPages ?? [],
+            zone: body.zone ?? null,
         }, { ip: clientIp(req) });
-    }
-    remove(id, req) {
-        return this.usersService.remove(id, { ip: clientIp(req) });
     }
 };
 exports.UsersController = UsersController;
@@ -70,14 +68,6 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "create", null);
-__decorate([
-    (0, common_1.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
-    __param(1, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Object]),
-    __metadata("design:returntype", void 0)
-], UsersController.prototype, "remove", null);
 exports.UsersController = UsersController = __decorate([
     (0, common_1.Controller)(['users', 'api/users']),
     __metadata("design:paramtypes", [users_service_1.UsersService])

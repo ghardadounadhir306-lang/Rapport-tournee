@@ -252,21 +252,23 @@ export default function AjouterPoisPage({ theme, userDisplayName = '', mode = 'c
 
   const panelStyle = {
     background: dk('#111827', '#ffffff'),
-    border: `1px solid ${dk('#374151', '#e5e7eb')}`,
-    borderRadius: 12,
+    border: `1px solid ${dk('#374151', '#e2e8f0')}`,
+    borderRadius: 14,
     padding: 20,
     boxShadow: theme === 'dark' ? '0 4px 20px rgba(0,0,0,.3)' : '0 4px 14px rgba(249,115,22,.12)',
   }
-  const label = { display: 'block', fontWeight: 700, fontSize: 12, color: dk('#94a3b8', '#64748b'), marginBottom: 6 }
+  const label = { display: 'block', fontWeight: 700, fontSize: 12, color: dk('#94a3b8', '#64748b'), marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }
   const inputStyle = {
     width: '100%',
     padding: '10px 12px',
-    borderRadius: 8,
-    border: `1px solid ${dk('#4b5563', '#d1d5db')}`,
+    borderRadius: 10,
+    border: `1.5px solid ${dk('#4b5563', '#e2e8f0')}`,
     background: dk('#1f2937', '#fff'),
     color: dk('#f9fafb', '#111827'),
     fontSize: 14,
     boxSizing: 'border-box',
+    transition: 'all 0.2s',
+    fontFamily: 'inherit',
   }
 
   if (loading && items.length === 0 && !loadErr) {
@@ -341,12 +343,12 @@ export default function AjouterPoisPage({ theme, userDisplayName = '', mode = 'c
               : 'Nouveau point client (POI)'}
         </div>
         {saveOk && (
-          <div style={{ marginBottom: 12, padding: 10, borderRadius: 8, background: '#ecfdf5', color: '#047857', fontSize: 13, fontWeight: 700 }}>
+          <div style={{ marginBottom: 12, padding: 10, borderRadius: 10, background: '#ecfdf5', color: '#047857', fontSize: 13, fontWeight: 700, borderLeft: '4px solid #22c55e' }}>
             Enregistrement effectué.
           </div>
         )}
         {formErr && (
-          <div style={{ marginBottom: 12, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#b91c1c', fontSize: 13 }}>
+          <div style={{ marginBottom: 12, padding: 10, borderRadius: 10, background: '#fef2f2', color: '#b91c1c', fontSize: 13, borderLeft: '4px solid #ef4444' }}>
             {formErr}
           </div>
         )}
@@ -472,21 +474,24 @@ export default function AjouterPoisPage({ theme, userDisplayName = '', mode = 'c
         <div style={{ overflow: 'auto', maxHeight: 'min(50vh, 480px)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: dk('#1f2937', '#f8fafc') }}>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Code</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Nom</th>
-                <th style={{ textAlign: 'right', padding: '10px 12px' }}>Lat</th>
-                <th style={{ textAlign: 'right', padding: '10px 12px' }}>Lng</th>
-                {!isDepotMode && <th style={{ textAlign: 'left', padding: '10px 12px' }}>Type</th>}
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Source</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Groupe</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Créé par</th>
-                <th style={{ textAlign: 'center', padding: '10px 12px' }}>Action</th>
+              <tr style={{ background: dk('#1f2937', 'linear-gradient(180deg, #f8fafc, #f1f5f9)') }}>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Code</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Nom</th>
+                <th style={{ textAlign: 'right', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Lat</th>
+                <th style={{ textAlign: 'right', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Lng</th>
+                {!isDepotMode && <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Type</th>}
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Source</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Groupe</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Créé par</th>
+                <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: dk('#94a3b8', '#475569') }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((r) => (
-                <tr key={r.code} style={{ borderTop: `1px solid ${dk('#374151', '#f1f5f9')}` }}>
+                <tr key={r.code} style={{ borderTop: `1px solid ${dk('#374151', '#f1f5f9')}`, transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = dk('#1e293b', '#fff7ed')}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
                   <td style={{ padding: '8px 12px', fontWeight: 700 }}>{r.code}</td>
                   <td style={{ padding: '8px 12px' }}>{r.nom || '—'}</td>
                   <td style={{ padding: '8px 12px', textAlign: 'right' }}>{Number.isFinite(r.lat) ? r.lat : '—'}</td>

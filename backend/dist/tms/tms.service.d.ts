@@ -98,14 +98,21 @@ export declare class TmsService implements OnModuleDestroy {
     }>;
     saveFormData(id: string, body: any, ctx?: {
         ip?: string | null;
-    }): Promise<TmsFormData>;
-    getData(query?: Record<string, string>): Promise<{
+    }): Promise<{
+        id: string;
+        tms_id: string;
+        table_rows: any;
+        tableRows: any;
+        input_data: any;
+        formData: any;
+    }>;
+    getData(query?: Record<string, string>, userZone?: string | null): Promise<{
         entriesCount: number;
         rowsCount: number;
         list: {
             id: string;
             tms: string | null;
-            wms: string;
+            wms: null;
             date: string | null;
             site: string | null;
             truck: string | null;

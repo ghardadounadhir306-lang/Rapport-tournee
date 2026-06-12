@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -26,8 +27,11 @@ export class TmsController {
   constructor(private readonly tmsService: TmsService) {}
 
   @Get()
-  getTmsData(@Query() query: Record<string, string>) {
-    return this.tmsService.getData(query ?? {});
+  getTmsData(
+    @Query() query: Record<string, string>,
+    @Headers('x-user-zone') userZone?: string,
+  ) {
+    return this.tmsService.getData(query ?? {}, userZone ?? null);
   }
 
   @Get('form-data/:id')

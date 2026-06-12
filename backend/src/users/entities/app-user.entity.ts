@@ -23,6 +23,10 @@ export class AppUser {
   @Column({ name: 'password_hash', type: 'varchar', length: 255 })
   passwordHash!: string;
 
+  /** Code dépôt de l'utilisateur (ex: BAR, TUN). NULL = aucune restriction (admins). */
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  zone!: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp', precision: 3 })
   createdAt!: Date;
 }

@@ -9,22 +9,26 @@ const labelStyle = {
   display: 'block',
   marginBottom: '6px',
   textTransform: 'uppercase',
+  letterSpacing: '0.06em',
 }
 
 const inputStyle = {
   width: '100%',
   padding: '10px',
-  borderRadius: '8px',
-  border: '1px solid #d1d5db',
+  borderRadius: '10px',
+  border: '1.5px solid #e2e8f0',
   fontSize: '14px',
   outline: 'none',
+  transition: 'all 0.2s',
+  fontFamily: 'inherit',
 }
 
 const panelStyle = {
-  border: '1px solid #e5e7eb',
-  borderRadius: '12px',
+  border: '1px solid #e2e8f0',
+  borderRadius: '14px',
   overflow: 'hidden',
   background: '#ffffff',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
 }
 
 function formatMoney(value) {
@@ -45,13 +49,15 @@ function tabButtonStyle(tab, activeTab) {
   return {
     flex: 1,
     padding: '10px 12px',
-    borderRadius: '8px',
-    border: isActive ? `1px solid ${palette.active}` : '1px solid #d1d5db',
+    borderRadius: '10px',
+    border: isActive ? `1.5px solid ${palette.active}` : '1.5px solid #e2e8f0',
     background: isActive ? palette.bg : '#fff',
     color: isActive ? palette.active : '#475569',
     fontWeight: 800,
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    fontSize: '13px',
+    letterSpacing: '0.02em',
   }
 }
 
@@ -322,10 +328,10 @@ export default function SimulateurPage() {
     <section className="content">
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '30px', backgroundColor: '#ecfdf5', padding: '10px', borderRadius: '12px' }}>💰</div>
+          <div style={{ fontSize: '30px', background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)', padding: '12px', borderRadius: '14px', boxShadow: '0 4px 14px rgba(16,185,129,0.12)' }}>💰</div>
           <div>
-            <h2 className="title-orange" style={{ margin: 0 }}>SIMULATEUR DE FACTURATION</h2>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Calcul avancé des coûts Aziza, Fleg et Divers</p>
+            <h2 className="title-orange" style={{ margin: 0, letterSpacing: '-0.01em' }}>SIMULATEUR DE FACTURATION</h2>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 500 }}>Calcul avancé des coûts Aziza, Fleg et Divers</p>
           </div>
         </div>
 
@@ -760,10 +766,10 @@ export default function SimulateurPage() {
         </form>
 
         <div style={panelStyle}>
-          <div style={{ background: '#f8fafc', padding: '15px', borderBottom: '1px solid #e5e7eb', fontWeight: 700 }}>RÉSULTAT DE LA SIMULATION</div>
+          <div style={{ background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)', padding: '15px', borderBottom: '2px solid #e2e8f0', fontWeight: 800, fontSize: '13px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>RÉSULTAT DE LA SIMULATION</div>
           <div style={{ padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '14px', color: '#64748b' }}>Estimation du coût total</div>
-            <div style={{ fontSize: '42px', fontWeight: 800, color: '#f97316', marginBottom: '10px' }}>{totalDisplay}</div>
+            <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Estimation du coût total</div>
+            <div style={{ fontSize: '42px', fontWeight: 800, color: '#f97316', marginBottom: '10px', letterSpacing: '-0.02em' }}>{totalDisplay}</div>
 
             {result ? (
               <div style={{
@@ -773,22 +779,22 @@ export default function SimulateurPage() {
                 textAlign: 'left',
                 marginBottom: '14px',
               }}>
-                <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TARIF UNITAIRE</div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: '4px solid #1e3a8a', borderRadius: '10px', padding: '12px', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, letterSpacing: '0.06em' }}>TARIF UNITAIRE</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e3a8a' }}>{tarifUnitDisplay}</div>
                 </div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>REMISE</div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: '4px solid #b91c1c', borderRadius: '10px', padding: '12px', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, letterSpacing: '0.06em' }}>REMISE</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#b91c1c' }}>
                     {Number.isFinite(Number(result.remisePercent)) ? `${(Number(result.remisePercent) * 100).toFixed(0)}%` : '0%'}
                   </div>
                 </div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>NB MAGASINS</div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: '4px solid #0f172a', borderRadius: '10px', padding: '12px', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, letterSpacing: '0.06em' }}>NB MAGASINS</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>{Number(result.nbMagasins) || 0}</div>
                 </div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>MAJORATION</div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${result.hasMajoration ? '#ea580c' : '#94a3b8'}`, borderRadius: '10px', padding: '12px', transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, letterSpacing: '0.06em' }}>MAJORATION</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: result.hasMajoration ? '#ea580c' : '#334155' }}>
                     {result.hasMajoration ? 'ACTIVE' : 'NON'}
                   </div>
@@ -799,14 +805,14 @@ export default function SimulateurPage() {
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '10px' }}>* Basé sur les tarifs contractuels en vigueur</div>
 
             {Array.isArray(result?.storesBreakdown) && result.storesBreakdown.length > 0 ? (
-              <div style={{ marginTop: '16px', overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+              <div style={{ marginTop: '16px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
                   <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ textAlign: 'left', padding: '8px', fontSize: '12px', borderBottom: '1px solid #e5e7eb' }}>Magasin</th>
-                      <th style={{ textAlign: 'right', padding: '8px', fontSize: '12px', borderBottom: '1px solid #e5e7eb' }}>Palettes</th>
-                      <th style={{ textAlign: 'right', padding: '8px', fontSize: '12px', borderBottom: '1px solid #e5e7eb' }}>Remise</th>
-                      <th style={{ textAlign: 'right', padding: '8px', fontSize: '12px', borderBottom: '1px solid #e5e7eb' }}>Net</th>
+                    <tr style={{ background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '11px', borderBottom: '2px solid #e2e8f0', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>Magasin</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: '11px', borderBottom: '2px solid #e2e8f0', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>Palettes</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: '11px', borderBottom: '2px solid #e2e8f0', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>Remise</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: '11px', borderBottom: '2px solid #e2e8f0', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>Net</th>
                     </tr>
                   </thead>
                   <tbody>

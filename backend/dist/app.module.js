@@ -26,6 +26,8 @@ const base_camion_module_1 = require("./base-camion/base-camion.module");
 const base_tarif_module_1 = require("./base-tarif/base-tarif.module");
 const base_chauffeur_module_1 = require("./base-chauffeur/base-chauffeur.module");
 const tarif_module_1 = require("./modules/tarif/tarif.module");
+const ai_module_1 = require("./ai/ai.module");
+const dashboard_module_1 = require("./dashboard/dashboard.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -47,6 +49,8 @@ exports.AppModule = AppModule = __decorate([
             gps_module_1.GpsModule,
             alerts_module_1.AlertsModule,
             transport_data_module_1.TransportDataModule,
+            ai_module_1.AiModule,
+            dashboard_module_1.DashboardModule,
         ],
         controllers: [app_controller_1.AppController, health_controller_1.HealthController],
         providers: [app_service_1.AppService],

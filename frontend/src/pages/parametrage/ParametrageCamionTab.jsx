@@ -241,18 +241,21 @@ export default function ParametrageCamionTab({ theme }) {
   const rowOdd = dk('#0f172a', '#ffffff')
   const rowEven = dk('#111c2f', '#f8fafc')
 
+  const panelBorderRadius = 14
+
   const btnGhost = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 8,
     padding: '10px 16px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: `1px solid ${border}`,
     background: dk('#1e293b', '#fff'),
     color: text,
     fontWeight: 700,
     fontSize: 13,
     cursor: 'pointer',
+    transition: 'all 0.2s',
   }
 
   const selectStyle = {
@@ -298,7 +301,7 @@ export default function ParametrageCamionTab({ theme }) {
       )}
     <div
       style={{
-        borderRadius: 12,
+        borderRadius: panelBorderRadius,
         border: `1px solid ${border}`,
         background: shellBg,
         overflow: 'hidden',
@@ -408,7 +411,10 @@ export default function ParametrageCamionTab({ theme }) {
           </thead>
           <tbody>
             {filtered.map((r, i) => (
-              <tr key={r.id} style={{ background: i % 2 === 0 ? rowOdd : rowEven, borderTop: `1px solid ${border}` }}>
+              <tr key={r.id} style={{ background: i % 2 === 0 ? rowOdd : rowEven, borderTop: `1px solid ${border}`, transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = dk('#1a2744', '#fff7ed')}
+                onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? rowOdd : rowEven}
+              >
                 <td style={{ padding: '11px 14px', fontWeight: 800, color: '#f97316' }}>{r.camion}</td>
                 <td style={{ padding: '11px 14px', color: text }}>{r.marque || '—'}</td>
                 <td style={{ padding: '11px 14px' }}>

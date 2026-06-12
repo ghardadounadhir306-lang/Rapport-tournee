@@ -13,6 +13,7 @@ exports.BaseChauffeur = void 0;
 const typeorm_1 = require("typeorm");
 let BaseChauffeur = class BaseChauffeur {
     id;
+    employeeId;
     nom;
     prenom;
     cin;
@@ -24,6 +25,10 @@ __decorate([
     (0, typeorm_1.PrimaryGeneratedColumn)({ type: 'bigint' }),
     __metadata("design:type", String)
 ], BaseChauffeur.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'employee_id', type: 'varchar', length: 64 }),
+    __metadata("design:type", String)
+], BaseChauffeur.prototype, "employeeId", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)

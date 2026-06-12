@@ -12,6 +12,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const anomaly_entity_1 = require("../anomalies/entities/anomaly.entity");
 const tms_form_data_entity_1 = require("../tms/entities/tms-form-data.entity");
 const gps_module_1 = require("../gps/gps.module");
+const mail_module_1 = require("../mail/mail.module");
 const alerts_controller_1 = require("./alerts.controller");
 const alerts_service_1 = require("./alerts.service");
 let AlertsModule = class AlertsModule {
@@ -19,7 +20,7 @@ let AlertsModule = class AlertsModule {
 exports.AlertsModule = AlertsModule;
 exports.AlertsModule = AlertsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([tms_form_data_entity_1.TmsFormData, anomaly_entity_1.Anomaly]), gps_module_1.GpsModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([tms_form_data_entity_1.TmsFormData, anomaly_entity_1.Anomaly]), gps_module_1.GpsModule, mail_module_1.MailModule],
         controllers: [alerts_controller_1.AlertsController],
         providers: [alerts_service_1.AlertsService],
         exports: [alerts_service_1.AlertsService],

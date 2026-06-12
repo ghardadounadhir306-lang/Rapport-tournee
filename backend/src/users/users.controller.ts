@@ -11,7 +11,7 @@ function clientIp(req: Request): string | null {
 
 @Controller(['users', 'api/users'])
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Get()
   list() {
@@ -26,7 +26,7 @@ export class UsersController {
   @Post()
   create(
     @Body()
-    body: { name?: string; email?: string; role?: string; matricule?: string; allowedPages?: string[] },
+    body: { name?: string; email?: string; role?: string; matricule?: string; allowedPages?: string[]; zone?: string | null },
     @Req() req: Request,
   ) {
     return this.usersService.create(
@@ -36,13 +36,25 @@ export class UsersController {
         role: body.role ?? 'user',
         matricule: body.matricule ?? '',
         allowedPages: body.allowedPages ?? [],
+        zone: body.zone ?? null,
       },
       { ip: clientIp(req) },
     );
   }
 
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
-    return this.usersService.remove(id, { ip: clientIp(req) });
-  }
+  // @Delete(':id')
+  //remove(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+  // return this.usersService.remove(id, { ip: clientIp(req) });
+  // }
+  //}
+
+  //      },
+  //{ ip: clientIp(req) },
+  //  );
+  //  }
+
+  //@Delete(':id')
+  //remove(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+  // return this.usersService.remove(id, { ip: clientIp(req) });
+  //}
 }

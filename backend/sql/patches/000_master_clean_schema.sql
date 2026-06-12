@@ -258,6 +258,7 @@ CREATE INDEX IF NOT EXISTS ix_base_camion_type ON base_camion (type);
 
 CREATE TABLE IF NOT EXISTS chauffeurs (
   id BIGSERIAL PRIMARY KEY,
+  employee_id VARCHAR(64) NOT NULL UNIQUE,
   nom VARCHAR(255) NOT NULL,
   prenom VARCHAR(255) NOT NULL,
   cin VARCHAR(64) NOT NULL UNIQUE,
@@ -268,6 +269,7 @@ CREATE TABLE IF NOT EXISTS chauffeurs (
 CREATE INDEX IF NOT EXISTS ix_chauffeurs_nom ON chauffeurs (nom);
 CREATE INDEX IF NOT EXISTS ix_chauffeurs_prenom ON chauffeurs (prenom);
 CREATE INDEX IF NOT EXISTS ix_chauffeurs_tel ON chauffeurs (tel);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_chauffeurs_employee_id ON chauffeurs (employee_id);
 
 ALTER TABLE transport_data
   ADD COLUMN IF NOT EXISTS camion_code VARCHAR(128) NULL;

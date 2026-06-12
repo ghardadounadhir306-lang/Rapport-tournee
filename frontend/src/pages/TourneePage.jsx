@@ -47,6 +47,7 @@ export default function TourneePage({
 }) {
   const dk = (dark, light) => theme === 'dark' ? dark : light
   const [showOptimizer, setShowOptimizer] = useState(false)
+  const [kmToast, setKmToast] = useState(null) // { type:'error'|'success', msg }
   const tableRef = React.useRef(null)
 
   // Scroll table into view after a short delay (let React render first)
@@ -166,15 +167,81 @@ export default function TourneePage({
     return clientNameByCode[key] || String(code)
   }, [clientNameByCode])
 
-  // Auto-calculate KM Facture = KM Dernier Client − KM Départ
+  const parseKmValue = (value) => {
+    const parsed = parseFloat(String(value ?? '').replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const roundKm = (value) => Math.round(value * 100) / 100
+
+  const sumKmTh = useCallback(() => {
+    return tableRows.reduce((sum, row) => {
+      const parsed = parseKmValue(row.kmTh)
+      return sum + (parsed != null && parsed > 0 ? parsed : 0)
+    }, 0)
+  }, [tableRows])
+
+  // ── Manual lock for KM Dernier Client ────────────────────────────────────────
+  // When true, the auto-correct useEffect will NOT overwrite the user's manual input.
+  const kmDernierClientLocked = React.useRef(false)
+  const [kmDernierClientManual, setKmDernierClientManual] = React.useState(false)
+
+  // ── Effect 1: Auto-calculate KM Facture = KM Dernier Client − KM Départ ─────
+  // Pure derived value, always recalculated from the two odometer readings.
   React.useEffect(() => {
-    const depart   = parseFloat(String(formData.kmDepart        ?? '').replace(',', '.'))
-    const dernier  = parseFloat(String(formData.kmDernierClient ?? '').replace(',', '.'))
+    const depart = parseKmValue(formData.kmDepart)
+    const dernier = parseKmValue(formData.kmDernierClient)
     if (Number.isFinite(depart) && Number.isFinite(dernier)) {
-      const result = Math.round((dernier - depart) * 100) / 100
+      const result = roundKm(dernier - depart)
       onFormChange('kmFacture', result >= 0 ? String(result) : '')
     }
-  }, [formData.kmDepart, formData.kmDernierClient])
+  }, [formData.kmDepart, formData.kmDernierClient, onFormChange])
+
+  // ── Effect 2: Auto-correct KM Dernier Client = KM Départ + Σ KM TH ─────────
+  // Only fires in AUTO mode (not locked by user).
+  React.useEffect(() => {
+    if (kmDernierClientLocked.current) return  // user typed manually — respect it
+    if (!tableRows || tableRows.length === 0) return
+
+    const depart = parseKmValue(formData.kmDepart)
+    const totalKmTh = sumKmTh()
+    if (!Number.isFinite(depart) || totalKmTh <= 0) return
+
+    const corrected = roundKm(depart + totalKmTh)
+    const currentDernier = parseKmValue(formData.kmDernierClient)
+    if (!Number.isFinite(currentDernier) || Math.abs(currentDernier - corrected) > 0.1) {
+      onFormChange('kmDernierClient', String(corrected))
+    }
+  }, [formData.kmDepart, onFormChange, sumKmTh, tableRows])
+
+  // ── Effect 3: Auto-fill KM Retour ONLY if it is empty/missing ───────────────
+  // KM Retour is a real odometer reading — we NEVER overwrite a value the user
+  // (or the mobile app) has already provided. We only provide a sensible default
+  // when the field is blank so the user has something to start from.
+  React.useEffect(() => {
+    const currentRetour = parseKmValue(formData.kmRetour)
+    // Already has a value → leave it alone entirely
+    if (Number.isFinite(currentRetour) && currentRetour > 0) return
+
+    // Field is empty → propose a default: kmDernierClient + lastKmTh (round-trip leg)
+    const dernier = parseKmValue(formData.kmDernierClient)
+    if (!Number.isFinite(dernier) || dernier <= 0) return
+
+    const lastKmTh = (() => {
+      if (!tableRows || tableRows.length === 0) return null
+      for (let i = tableRows.length - 1; i >= 0; i--) {
+        const v = parseKmValue(tableRows[i].kmTh)
+        if (Number.isFinite(v) && v > 0) return v
+      }
+      return null
+    })()
+
+    const suggested = Number.isFinite(lastKmTh) && lastKmTh > 0
+      ? roundKm(dernier + lastKmTh)
+      : roundKm(dernier + 1)
+
+    onFormChange('kmRetour', String(suggested))
+  }, [formData.kmDernierClient, formData.kmRetour, onFormChange, tableRows])
 
 
 
@@ -186,8 +253,80 @@ export default function TourneePage({
     ? { maxHeight: '260px', minHeight: '80px', overflow: 'auto' }
     : { minHeight: '80px' }
 
+  /** Configurable tolerance (km). Can be made a prop or admin setting later. */
+  const KM_TOLERANCE = 20
+
+  /** Show a dismissable toast for 6 seconds */
+  const showToast = (type, msg) => {
+    setKmToast({ type, msg })
+    setTimeout(() => setKmToast(null), 6000)
+  }
+
+  /** Validate km before save. Returns true if OK to proceed. */
+  const validateKm = () => {
+    const kmReel  = parseFloat(String(formData.kmFacture ?? '').replace(',', '.'))
+    const kmMoyen = parseFloat(String(formData.kmMoy     ?? '').replace(',', '.'))
+    const kmRetour = parseFloat(String(formData.kmRetour ?? '').replace(',', '.'))
+    const kmDernierClient = parseFloat(String(formData.kmDernierClient ?? '').replace(',', '.'))
+
+    // Guard 1: keep only the direct odometer ordering rule used by the backend.
+    if (Number.isFinite(kmRetour) && kmRetour > 0 && Number.isFinite(kmDernierClient) && kmDernierClient > 0) {
+      if (kmRetour <= kmDernierClient) {
+        const msg = `KM Retour incohérent avec le dernier client.\n` +
+          `KM Retour : ${kmRetour} km  |  KM dernier client : ${kmDernierClient} km.\n` +
+          `KM Retour doit être supérieur au KM dernier client.`
+        console.warn(`[KM Validation] BLOQUÉ (KM Retour) — ${msg}`)
+        showToast('error', msg)
+        return false
+      }
+    }
+
+    // ── Guard 2: KM Facture vs KM Moyen ─────────────────────────────────────
+    if (!Number.isFinite(kmReel) || kmReel <= 0) return true
+    if (!Number.isFinite(kmMoyen) || kmMoyen <= 0) return true
+
+    const seuil = kmMoyen + KM_TOLERANCE
+    console.debug(`[KM Validation] kmReel=${kmReel} | kmMoyen=${kmMoyen} | tolérance=${KM_TOLERANCE} | seuil=${seuil}`)
+
+    if (kmReel > seuil) {
+      const msg = `Kilométrage supérieur au seuil autorisé.\n` +
+        `KM réel : ${kmReel} km  |  KM moyen : ${kmMoyen} km  |  Seuil max : ${seuil} km\n` +
+        `Écart : +${(kmReel - seuil).toFixed(1)} km au-delà de la tolérance (±${KM_TOLERANCE} km).`
+      console.warn(`[KM Validation] BLOQUÉ — ${msg}`)
+      showToast('error', msg)
+      return false
+    }
+    return true
+  }
+
   return (
     <section className={`content ${dk('dark-theme-content', 'light-theme-content')}`} style={{ padding: '20px', minHeight: 0 }}>
+
+      {/* ── KM Validation Toast ── */}
+      {kmToast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 9999,
+          maxWidth: 420, minWidth: 300,
+          background: kmToast.type === 'error' ? '#fef2f2' : '#f0fdf4',
+          border: `2px solid ${kmToast.type === 'error' ? '#ef4444' : '#22c55e'}`,
+          borderRadius: 14, padding: '16px 20px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          animation: 'slideInToast .25s ease',
+        }}>
+          <style>{`@keyframes slideInToast{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}`}</style>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>{kmToast.type === 'error' ? '🚫' : '✅'}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: kmToast.type === 'error' ? '#dc2626' : '#16a34a', marginBottom: 4 }}>
+                {kmToast.type === 'error' ? 'Enregistrement bloqué — Kilométrage non conforme' : 'Succès'}
+              </div>
+              <div style={{ fontSize: 12, color: '#374151', whiteSpace: 'pre-line', lineHeight: 1.5 }}>{kmToast.msg}</div>
+            </div>
+            <button onClick={() => setKmToast(null)}
+              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#6b7280', flexShrink: 0, lineHeight: 1 }}>✕</button>
+          </div>
+        </div>
+      )}
 
       {/* ── Background enrichment banner ── */}
       {detailEnriching && (
@@ -223,13 +362,15 @@ export default function TourneePage({
           style={{
             marginBottom: 16,
             padding: '12px 14px',
-            borderRadius: 8,
+            borderRadius: 12,
             background: '#fff7ed',
             border: '1px solid #fed7aa',
+            borderLeft: '4px solid #f97316',
             fontSize: 13,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           }}
         >
-          <div style={{ fontWeight: 800, color: '#c2410c', marginBottom: 6 }}>Alertes ({tourneeAlerts.length})</div>
+          <div style={{ fontWeight: 800, color: '#c2410c', marginBottom: 6, letterSpacing: '-0.01em' }}>Alertes ({tourneeAlerts.length})</div>
           <ul style={{ margin: 0, paddingLeft: 18, color: '#9a3412' }}>
             {tourneeAlerts.slice(0, 8).map((a, i) => (
               <li key={i}>{a.message}</li>
@@ -314,18 +455,92 @@ export default function TourneePage({
             { label: 'Km.Retour',         field: 'kmRetour',        type: 'text' },
             { label: 'Km dernier client', field: 'kmDernierClient', type: 'text' },
             { label: 'Km/Moy',            field: 'kmMoy',           type: 'text' },
-          ].map(({ label, field, type }) => (
-            <div key={field} className={dk('dark-form-group', 'light-form-group')}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>{label}<AutoBadge field={field} /></label>
-              {type === 'time' ? (
-                <div className="time-input-group">
-                  <input type="time" value={formData[field] || ''} onChange={(e) => onFormChange(field, e.target.value)} />
-                </div>
-              ) : (
-                <input type="text" value={formData[field] || ''} onChange={(e) => onFormChange(field, e.target.value)} />
-              )}
-            </div>
-          ))}
+          ].map(({ label, field, type }) => {
+            // Detect incoherent kmDepart: departure odometer >= last client odometer is impossible
+            const isKmDepartInvalid = (() => {
+              if (field !== 'kmDepart') return false
+              const depart = parseKmValue(formData.kmDepart)
+              const dernier = parseKmValue(formData.kmDernierClient)
+              return Number.isFinite(depart) && Number.isFinite(dernier) && dernier > 0 && depart >= dernier
+            })()
+
+            return (
+              <div key={field} className={dk('dark-form-group', 'light-form-group')}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  {label}<AutoBadge field={field} />
+                  {isKmDepartInvalid && (
+                    <span title="KM Départ incohérent : doit être inférieur au KM Dernier Client" style={{
+                      fontSize: '9px', fontWeight: 700,
+                      background: '#ef4444', color: '#fff',
+                      padding: '1px 5px', borderRadius: '3px',
+                      marginLeft: '4px', whiteSpace: 'nowrap',
+                    }}>⚠ INVALIDE</span>
+                  )}
+                  {/* Toggle badge for kmDernierClient: switch between AUTO and MANUEL mode */}
+                  {field === 'kmDernierClient' && (
+                    <span
+                      title={kmDernierClientManual
+                        ? 'Mode MANUEL — cliquez pour revenir au calcul automatique'
+                        : 'Mode AUTO — cliquez pour saisir manuellement'}
+                      onClick={() => {
+                        const nextLocked = !kmDernierClientManual
+                        kmDernierClientLocked.current = nextLocked
+                        setKmDernierClientManual(nextLocked)
+                        // If switching back to AUTO, immediately recalculate the correct value
+                        if (!nextLocked) {
+                          const depart = parseKmValue(formData.kmDepart)
+                          const totalKmTh = sumKmTh()
+                          if (Number.isFinite(depart) && totalKmTh > 0) {
+                            onFormChange('kmDernierClient', String(roundKm(depart + totalKmTh)))
+                          }
+                        }
+                      }}
+                      style={{
+                        fontSize: '8px', fontWeight: 700, cursor: 'pointer',
+                        background: kmDernierClientManual
+                          ? 'linear-gradient(135deg, #f97316, #ea580c)'
+                          : 'linear-gradient(135deg, #06b6d4, #0891b2)',
+                        color: '#fff',
+                        padding: '1px 5px', borderRadius: '3px',
+                        marginLeft: '4px', whiteSpace: 'nowrap',
+                        userSelect: 'none',
+                      }}
+                    >
+                      {kmDernierClientManual ? '🔒 MANUEL' : '🔓 AUTO'}
+                    </span>
+                  )}
+                </label>
+                {type === 'time' ? (
+                  <div className="time-input-group">
+                    <input type="time" value={formData[field] || ''} onChange={(e) => onFormChange(field, e.target.value)} />
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={formData[field] || ''}
+                    onChange={(e) => {
+                      // When user types in kmDernierClient, automatically switch to MANUEL mode
+                      if (field === 'kmDernierClient') {
+                        kmDernierClientLocked.current = true
+                        setKmDernierClientManual(true)
+                      }
+                      onFormChange(field, e.target.value)
+                    }}
+                    style={isKmDepartInvalid ? {
+                      borderColor: '#ef4444',
+                      boxShadow: '0 0 0 2px rgba(239,68,68,0.25)',
+                      background: dk('#450a0a', '#fef2f2'),
+                      color: '#ef4444',
+                      fontWeight: 700,
+                    } : field === 'kmDernierClient' && kmDernierClientManual ? {
+                      borderColor: '#f97316',
+                      boxShadow: '0 0 0 2px rgba(249,115,22,0.25)',
+                    } : {}}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Row 4 */}
@@ -411,7 +626,7 @@ export default function TourneePage({
         {/* ── Route Optimizer (Embedded) ── */}
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontWeight: 800, color: '#f97316' }}>Optimisation de tournée</div>
+            <div style={{ fontWeight: 800, color: '#f97316', fontSize: 14, letterSpacing: '-0.01em' }}>Optimisation de tournée</div>
             <button
               type="button"
               onClick={() => {
@@ -438,7 +653,7 @@ export default function TourneePage({
       {/* ── Simulation Tarif ── */}
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${dk('#374151', '#e5e7eb')}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: '16px' }}>
-          <div style={{ fontWeight: 800, color: '#2563eb' }}>Calcul du Tarif (Simulation)</div>
+          <div style={{ fontWeight: 800, color: '#2563eb', fontSize: 14, letterSpacing: '-0.01em' }}>Calcul du Tarif (Simulation)</div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {simResult && (
               <button
@@ -485,7 +700,7 @@ export default function TourneePage({
         </div>
 
         {simError && (
-          <div style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #f87171', padding: '10px', borderRadius: '8px', marginBottom: '10px', fontSize: '13px' }}>
+          <div style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #f87171', borderLeft: '4px solid #ef4444', padding: '10px 12px', borderRadius: '10px', marginBottom: '10px', fontSize: '13px', fontWeight: 600 }}>
             Erreur: {simError}
           </div>
         )}
@@ -559,7 +774,13 @@ export default function TourneePage({
         borderTop: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
         boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.05)'
       }}>
-        <button className={dk('dark-save-btn', 'light-save-btn')} onClick={onSave}>
+        <button
+          className={dk('dark-save-btn', 'light-save-btn')}
+          onClick={() => {
+            if (!validateKm()) return   // ← KM guard: blocks if over tolerance
+            onSave()
+          }}
+        >
           Enregistrer
         </button>
       </div>

@@ -29,8 +29,8 @@ let TmsController = class TmsController {
     constructor(tmsService) {
         this.tmsService = tmsService;
     }
-    getTmsData(query) {
-        return this.tmsService.getData(query ?? {});
+    getTmsData(query, userZone) {
+        return this.tmsService.getData(query ?? {}, userZone ?? null);
     }
     getFormData(id) {
         return this.tmsService.getFormData(id);
@@ -58,8 +58,9 @@ exports.TmsController = TmsController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Headers)('x-user-zone')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], TmsController.prototype, "getTmsData", null);
 __decorate([

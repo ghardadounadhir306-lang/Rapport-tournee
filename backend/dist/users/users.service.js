@@ -64,7 +64,6 @@ let UsersService = UsersService_1 = class UsersService {
         'TOURNEES',
         'DASHBOARD',
         'GPS',
-        'CONFRONTATION',
         'SIMULATEUR',
         'PARAMETRAGE',
         'OPTIMISATION',
@@ -76,6 +75,14 @@ let UsersService = UsersService_1 = class UsersService {
         this.mail = mail;
         this.activity = activity;
     }
+    normalizeRole(rawRole) {
+        const role = String(rawRole ?? '').trim().toLowerCase();
+        if (role === 'admin' || role === 'super_admin')
+            return 'admin';
+        if (role === 'responsable')
+            return 'responsable';
+        return 'user';
+    }
     isMissingAppUsersTable(err) {
         return err?.code === 'ER_NO_SUCH_TABLE';
     }
@@ -83,14 +90,25 @@ let UsersService = UsersService_1 = class UsersService {
         return 'Table app_users manquante. Executez: backend/sql/patches/004_app_users.sql';
     }
     normalizeAllowedPages(pages, role) {
+        const normalizedRole = this.normalizeRole(role);
+        const isAdmin = normalizedRole === 'admin';
+        const isResponsible = normalizedRole === 'responsable';
         const input = Array.isArray(pages) ? pages : [];
         const clean = Array.from(new Set(input
             .map((p) => String(p ?? '').trim().toUpperCase())
             .filter((p) => this.ALL_PAGES.includes(p))));
-        const fallback = role === 'super_admin' ? [...this.ALL_PAGES] : ['TOURNEES', 'DASHBOARD'];
+        const fallback = isAdmin
+            ? ['TOURNEES', 'DASHBOARD', 'ADMIN']
+            : isResponsible
+                ? ['DASHBOARD']
+                : ['TOURNEES', 'DASHBOARD'];
         const base = clean.length > 0 ? clean : fallback;
-        if (role === 'super_admin') {
+        if (isAdmin) {
             return base;
+        }
+        if (isResponsible) {
+            const filtered = base.filter((p) => p !== 'ADMIN' && p !== 'SUPER_ADMIN_TRIPS' && p !== 'SIMULATEUR' && p !== 'PARAMETRAGE' && p !== 'OPTIMISATION' && p !== 'TOURNEES');
+            return filtered.length > 0 ? filtered : ['DASHBOARD'];
         }
         return base.filter((p) => p !== 'ADMIN' && p !== 'SUPER_ADMIN_TRIPS');
     }
@@ -98,13 +116,17 @@ let UsersService = UsersService_1 = class UsersService {
         return pages.length > 0 ? pages.join(',') : null;
     }
     decodeAllowedPages(raw, role) {
+        const normalizedRole = this.normalizeRole(role);
         const parsed = raw
             ? raw
                 .split(',')
                 .map((p) => p.trim().toUpperCase())
                 .filter(Boolean)
             : [];
-        return this.normalizeAllowedPages(parsed, role);
+        if (!raw && role === 'super_admin') {
+            return [...this.ALL_PAGES];
+        }
+        return this.normalizeAllowedPages(parsed, normalizedRole);
     }
     async findAll() {
         try {
@@ -114,8 +136,9 @@ let UsersService = UsersService_1 = class UsersService {
                     id: u.id,
                     name: u.name,
                     email: u.email,
-                    role: u.role,
+                    role: this.normalizeRole(u.role),
                     matricule: u.matricule ?? null,
+                    zone: u.zone ?? null,
                     allowedPages: this.decodeAllowedPages(u.allowedPages, u.role),
                     created_at: u.createdAt.toISOString(),
                 })),
@@ -131,8 +154,9 @@ let UsersService = UsersService_1 = class UsersService {
     async create(dto, ctx) {
         const name = dto.name?.trim();
         const email = dto.email?.trim().toLowerCase();
-        const role = dto.role === 'admin' || dto.role === 'super_admin' ? dto.role : 'user';
+        const role = this.normalizeRole(dto.role);
         const matricule = dto.matricule?.trim() || null;
+        const zone = dto.zone?.trim().toUpperCase() || null;
         const allowedPages = this.normalizeAllowedPages(dto.allowedPages, role);
         if (!name || !email) {
             throw new common_1.BadRequestException('Nom et email sont obligatoires');
@@ -163,6 +187,7 @@ let UsersService = UsersService_1 = class UsersService {
             email,
             role,
             matricule,
+            zone,
             allowedPages: this.encodeAllowedPages(allowedPages),
             passwordHash,
         });
@@ -179,8 +204,9 @@ let UsersService = UsersService_1 = class UsersService {
             `Bonjour ${name},`,
             '',
             `Votre compte R.Tournee a ete cree.`,
-            `Role : ${role === 'super_admin' ? 'super admin' : role === 'admin' ? 'Administrateur' : 'Utilisateur'}`,
+            `Role : ${role === 'admin' ? 'Administrateur' : role === 'responsable' ? 'Responsable' : 'Utilisateur'}`,
             ...(matricule ? [`Matricule : ${matricule}`] : []),
+            ...(zone ? [`Zone / Depot   : ${zone}`] : []),
             `Pages autorisees        : ${allowedPages.join(', ')}`,
             '',
             `Email de connexion      : ${email}`,
@@ -197,21 +223,23 @@ let UsersService = UsersService_1 = class UsersService {
             });
         }
         catch (e) {
-            await this.userRepo.delete({ id: user.id });
-            this.logger.error('Failed to send welcome email; user rolled back', e);
-            throw new common_1.BadRequestException("L'email n'a pas pu etre envoye. Verifiez la configuration SMTP.");
+            this.logger.error('Failed to send welcome email; user kept in database', e);
+            return {
+                message: "Utilisateur cree, mais l'email n'a pas pu etre envoye. Verifiez la configuration SMTP.",
+                userId: user.id,
+            };
         }
         await this.activity.log({
             action: 'USER_CREATE',
             targetType: 'user',
             targetId: String(user.id),
-            details: { email, role, allowedPages, matricule },
+            details: { email, role, allowedPages, matricule, zone },
             ip: ctx?.ip ?? null,
         });
         return { message: 'Utilisateur cree et mot de passe envoye par email.' };
     }
     BUILTIN = {
-        'lumiere.logistique@gmail.com': { password: 'admin123', role: 'super_admin' },
+        'ghardadounadhir306@gmail.com': { password: 'admin123', role: 'admin' },
     };
     async login(email, password, ctx) {
         const lowerEmail = email?.trim().toLowerCase();
@@ -247,11 +275,13 @@ let UsersService = UsersService_1 = class UsersService {
                 actorUserId: dbUser.id,
                 ip: ctx?.ip ?? null,
             });
+            const role = this.normalizeRole(dbUser.role);
             return {
-                role: dbUser.role,
+                role,
                 name: dbUser.name,
                 email: dbUser.email,
                 matricule: dbUser.matricule ?? null,
+                zone: dbUser.zone ?? null,
                 allowedPages: this.decodeAllowedPages(dbUser.allowedPages, dbUser.role),
             };
         }
@@ -264,11 +294,11 @@ let UsersService = UsersService_1 = class UsersService {
                 ip: ctx?.ip ?? null,
             });
             return {
-                role: builtin.role,
-                name: 'super admin',
+                role: this.normalizeRole(builtin.role),
+                name: 'admin',
                 email: lowerEmail,
                 matricule: null,
-                allowedPages: this.normalizeAllowedPages([...this.ALL_PAGES], 'super_admin'),
+                allowedPages: this.normalizeAllowedPages([...this.ALL_PAGES], 'admin'),
             };
         }
         await this.activity.log({

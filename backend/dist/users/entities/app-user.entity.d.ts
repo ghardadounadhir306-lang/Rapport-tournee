@@ -6,5 +6,6 @@ export declare class AppUser {
     matricule: string | null;
     allowedPages: string | null;
     passwordHash: string;
+    zone: string | null;
     createdAt: Date;
 }

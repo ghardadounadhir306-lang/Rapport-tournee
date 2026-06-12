@@ -1,22 +1,24 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import './App.css'
+import './ai-styles.css'
 
 import { apiUrl } from './utils/apiBase'
 import { appendClientRowIfNotDuplicate, mergeLoadedFormWithItem } from './utils/tourneeClientRow'
 import { applyLegKmsToRows, fetchTheoreticalKmLegs, fillMissingKmThRows } from './utils/theoreticalKm'
 import { useTmsData } from './hooks/UseTmsData'
 import { useAlerts } from './hooks/useAlerts'
-import LoginScreen       from './components/loginScreen'
-import Sidebar           from './components/Sidebar'
-import TourneePage       from './pages/TourneePage'
-import DashboardPage     from './pages/DashboardPage'
-import ConfrontationPage from './pages/Confrontationpage'
-import SimulateurPage    from './pages/Simulateurpage'
-import AdminPage         from './pages/AdminPage'
+import LoginScreen from './components/loginScreen'
+import Sidebar from './components/Sidebar'
+import TourneePage from './pages/TourneePage'
+import DashboardPage from './pages/DashboardPage'
+import SimulateurPage from './pages/Simulateurpage'
+import AdminPage from './pages/AdminPage'
 import SuperAdminTripsPage from './pages/SuperAdminTripsPage'
 
 import ParametragePage from './pages/ParametragePage'
 import OptimisationPage from './pages/OptimisationPage'
+import AiDashboardPage from './pages/AiDashboardPage'
+import AiChatbot from './components/AiChatbot'
 
 const TOURNEE_TABS = ['AZIZA', 'DIVERS', 'GIAS', 'FLEG']
 const SUPER_ADMIN_TAB = 'SUPER_ADMIN_TRIPS'
@@ -38,46 +40,59 @@ const EMPTY_ROW = () => ({
 
 export default function App() {
   // ── UI state ────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab]             = useState('AZIZA')
-  const [isLoggedIn, setIsLoggedIn]           = useState(false)
+  const [activeTab, setActiveTab] = useState('AZIZA')
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [clientNameByCode, setClientNameByCode] = useState({})
-  const [userRole, setUserRole]               = useState(null)
+  const [userRole, setUserRole] = useState(null)
   const [userDisplayName, setUserDisplayName] = useState('')
-  const [allowedPages, setAllowedPages]       = useState(['TOURNEES', 'DASHBOARD'])
-  const [loginForm, setLoginForm]             = useState({ username: '', password: '' })
+  const [userZone, setUserZone] = useState(null)
+  const [allowedPages, setAllowedPages] = useState(['TOURNEES', 'DASHBOARD'])
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   const [showTourneeMenu, setShowTourneeMenu] = useState(false)
   const [showParametrageMenu, setShowParametrageMenu] = useState(false)
-  const [sidebarWidth, setSidebarWidth]       = useState(280)
-  const [theme, setTheme]                     = useState('light')
+  const [showAdminMenu, setShowAdminMenu] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(280)
+  const [theme, setTheme] = useState('light')
+  const [saveToast, setSaveToast] = useState(null) // { type:'success'|'error', msg }
+
+  const showSaveToast = (type, msg) => {
+    setSaveToast({ type, msg })
+    setTimeout(() => setSaveToast(null), 6000)
+  }
 
   // ── Form / table state ──────────────────────────────────────────────────────
-  const [tableRows, setTableRows]           = useState([EMPTY_ROW()])
-  const [formData, setFormData]             = useState({})
-  const [selectedTmsId, setSelectedTmsId]   = useState(null)
+  const [tableRows, setTableRows] = useState([EMPTY_ROW()])
+  const [formData, setFormData] = useState({})
+  const [selectedTmsId, setSelectedTmsId] = useState(null)
   const [selectedTmsItem, setSelectedTmsItem] = useState(null)
-  const [loadingDetail, setLoadingDetail]   = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
   // Background loading — details fetched AFTER form is shown (non-blocking)
   const [detailEnriching, setDetailEnriching] = useState(false)
 
   // ── TMS data (fetch + filter) ────────────────────────────────────────────────
-  const { tms, list, filteredList, tmsFilters, setTmsFilters, activeFilterChips, clearFilters } = useTmsData()
+  const { tms, list, filteredList, tmsFilters, setTmsFilters, activeFilterChips, clearFilters } = useTmsData({ userZone })
   const { alerts, refetch: refetchAlerts, forTournee } = useAlerts({ pollMs: 120_000 })
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const isResizing = useRef(false)
-  const menuRef         = useRef(null)
-  const paramMenuRef    = useRef(null)
+  const menuRef = useRef(null)
+  const paramMenuRef = useRef(null)
+  const adminMenuRef = useRef(null)
 
   // ── Derived ──────────────────────────────────────────────────────────────────
-  const selectedItem       = selectedTmsItem ?? (selectedTmsId ? list.find((x) => x?.id === selectedTmsId) : null)
+  const selectedItem = selectedTmsItem ?? (selectedTmsId ? list.find((x) => x?.id === selectedTmsId) : null)
   const hasSelectedTournee = Boolean(selectedItem)
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin'
   const isSuperAdmin = userRole === 'super_admin'
+  const isResponsible = userRole === 'responsable'
   const canAccess = useCallback(
     (page) => {
-      if (page === SUPER_ADMIN_TAB) return isSuperAdmin || allowedPages.includes(page)
-      return userRole === 'admin' || isSuperAdmin || allowedPages.includes(page)
+      if (page === SUPER_ADMIN_TAB) return isAdmin || allowedPages.includes(page)
+      if (isAdmin) return true
+      if (isResponsible) return allowedPages.includes(page)
+      return allowedPages.includes(page)
     },
-    [allowedPages, isSuperAdmin, userRole],
+    [allowedPages, isAdmin, isResponsible],
   )
   const hasTourneeAccess = canAccess('TOURNEES')
   /** Panneau liste TOURNÉES : uniquement sur les onglets tournée (AZIZA…), pas sur Dashboard, Paramétrage, etc. */
@@ -88,7 +103,6 @@ export default function App() {
     if (hasTourneeAccess) return 'AZIZA'
     if (canAccess('DASHBOARD')) return 'DASHBOARD'
     if (canAccess('GPS')) return 'GPS'
-    if (canAccess('CONFRONTATION')) return 'CONFRONTATION'
     if (canAccess('SIMULATEUR')) return 'SIMULATEUR'
     if (canAccess('PARAMETRAGE')) return 'PARAMETRAGE_AJOUTER_POIS'
     if (canAccess('OPTIMISATION')) return 'OPTIMISATION'
@@ -131,10 +145,10 @@ export default function App() {
     if (activeTab === 'DASHBOARD' && canAccess('DASHBOARD')) return
     if (activeTab === 'GPS' && canAccess('GPS')) return
     if (activeTab === 'ROUTE_OPT' && canAccess('TOURNEES')) return
-    if (activeTab === 'CONFRONTATION' && canAccess('CONFRONTATION')) return
     if (activeTab === 'SIMULATEUR' && canAccess('SIMULATEUR')) return
     if (PARAMETRAGE_TABS.includes(activeTab) && canAccess('PARAMETRAGE')) return
     if (activeTab === 'OPTIMISATION' && canAccess('OPTIMISATION')) return
+    if (activeTab === 'AI_DASHBOARD') return
     if (activeTab === 'ADMIN' && canAccess('ADMIN')) return
     if (activeTab === SUPER_ADMIN_TAB && canAccess(SUPER_ADMIN_TAB)) return
     setActiveTab(firstAllowedTab())
@@ -152,6 +166,7 @@ export default function App() {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setShowTourneeMenu(false)
       if (paramMenuRef.current && !paramMenuRef.current.contains(e.target)) setShowParametrageMenu(false)
+      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target)) setShowAdminMenu(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -189,11 +204,14 @@ export default function App() {
     // Switch to Tournée tab automatically
     if (!TOURNEE_TABS.includes(activeTab)) setActiveTab('AZIZA')
 
+    // '0' means "not set" (backend hardcoded fallback) — treat as blank
+    const safeWms = (v) => (v == null || String(v).trim() === '0' || String(v).trim() === '') ? '' : String(v).trim()
+
     // Show basic form data from the sidebar item IMMEDIATELY
     const instantForm = mergeLoadedFormWithItem(
       {
         date: item.date ?? '',
-        wms: item.wms ?? '',
+        wms: safeWms(item.wms),
         prestation: item.prestation ?? '',
         truck: item.truck ?? '',
         driver: item.driver ?? '',
@@ -239,7 +257,7 @@ export default function App() {
       // ── Parse form-data response ──────────────────────────────────────────────
       // The API can return fields under 'formData', 'input_data', or flat at root.
       const data = formResult.status === 'fulfilled' ? formResult.value : null
-      const fd   = data?.formData ?? data?.input_data ?? (
+      const fd = data?.formData ?? data?.input_data ?? (
         data && typeof data === 'object' && !Array.isArray(data) ? data : null
       )
       const resolvedSite =
@@ -251,45 +269,45 @@ export default function App() {
       // If fd is null (API had no data), re-merge with item so nothing is lost.
       const safefd = fd ?? {}
       setFormData(mergeLoadedFormWithItem({
-        date:            safefd.date            ?? item.date        ?? '',
-        wms:             safefd.wms             ?? item.wms         ?? '',
-        prestation:      safefd.prestation      ?? item.prestation  ?? '',
-        truck:           safefd.truck           ?? item.truck       ?? '',
-        driver:          safefd.driver          ?? item.driver      ?? '',
-        dep:             safefd.dep             ?? item.dep         ?? '',
-        kmFacture:       safefd.kmFacture       ?? '',
-        marchandise:     safefd.marchandise     ?? '',
-        conformite:      safefd.conformite      ?? 'Conforme',
-        observation:     safefd.observation     ?? '',
-        hDepart:         safefd.hDepart         ?? '',
-        kmDepart:        safefd.kmDepart        ?? '',
-        hRetour:         safefd.hRetour         ?? '',
-        kmRetour:        safefd.kmRetour        ?? '',
+        date: safefd.date ?? item.date ?? '',
+        wms: safeWms(safefd.wms) || safeWms(item.wms),
+        prestation: safefd.prestation ?? item.prestation ?? '',
+        truck: safefd.truck ?? item.truck ?? '',
+        driver: safefd.driver ?? item.driver ?? '',
+        dep: safefd.dep ?? item.dep ?? '',
+        kmFacture: safefd.kmFacture ?? '',
+        marchandise: safefd.marchandise ?? '',
+        conformite: safefd.conformite ?? 'Conforme',
+        observation: safefd.observation ?? '',
+        hDepart: safefd.hDepart ?? '',
+        kmDepart: safefd.kmDepart ?? '',
+        hRetour: safefd.hRetour ?? '',
+        kmRetour: safefd.kmRetour ?? '',
         kmDernierClient: safefd.kmDernierClient ?? '',
-        kmMoy:           safefd.kmMoy           ?? '',
-        totalPalettes:   safefd.totalPalettes   ?? '0',
-        tourneeSec:      safefd.tourneeSec      ?? '0',
-        apresMidi:       safefd.apresMidi       ?? false,
-        interSite:       safefd.interSite       ?? false,
-        gpsStartLat:     safefd.gpsStartLat     ?? '',
-        gpsStartLng:     safefd.gpsStartLng     ?? '',
-        gpsEndLat:       safefd.gpsEndLat       ?? '',
-        gpsEndLng:       safefd.gpsEndLng       ?? '',
-        gpsStartLabel:   safefd.gpsStartLabel   ?? '',
-        gpsEndLabel:     safefd.gpsEndLabel     ?? '',
-        prestationId:    safefd.prestationId    ?? '',
-        siteId:          resolvedSite,
+        kmMoy: safefd.kmMoy ?? '',
+        totalPalettes: safefd.totalPalettes ?? '0',
+        tourneeSec: safefd.tourneeSec ?? '0',
+        apresMidi: safefd.apresMidi ?? false,
+        interSite: safefd.interSite ?? false,
+        gpsStartLat: safefd.gpsStartLat ?? '',
+        gpsStartLng: safefd.gpsStartLng ?? '',
+        gpsEndLat: safefd.gpsEndLat ?? '',
+        gpsEndLng: safefd.gpsEndLng ?? '',
+        gpsStartLabel: safefd.gpsStartLabel ?? '',
+        gpsEndLabel: safefd.gpsEndLabel ?? '',
+        prestationId: safefd.prestationId ?? '',
+        siteId: resolvedSite,
         autoFilledFromMobile: safefd.autoFilledFromMobile ?? [],
       }, item))
 
       // ── Pick table rows from whichever source has data ────────────────────────
       const rowsFromFormApi = data?.tableRows ?? data?.table_rows ?? []
-      const rowsFromDetail  = detailResult.status === 'fulfilled'
+      const rowsFromDetail = detailResult.status === 'fulfilled'
         ? (detailResult.value?.tableRows ?? [])
         : []
       let baseRows = rowsFromFormApi.length > 0 ? rowsFromFormApi
         : rowsFromDetail.length > 0 ? rowsFromDetail
-        : []
+          : []
 
       // Show table rows right away (without KM enrichment)
       const baseRowsMerged = appendClientRowIfNotDuplicate(
@@ -316,7 +334,7 @@ export default function App() {
         fillMissingKmThRows(
           appendClientRowIfNotDuplicate([EMPTY_ROW()], item),
           item.site,
-        ).then(merged => setTableRows(merged)).catch(() => {})
+        ).then(merged => setTableRows(merged)).catch(() => { })
       }
     }
   }, [activeTab])
@@ -371,9 +389,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input_data: formData, table_rows: tableRows }),
       })
-      if (res.ok) refetchAlerts?.()
       if (res.ok) {
-        alert('✅ Données enregistrées avec succès !')
+        refetchAlerts?.()
+        showSaveToast('success', 'Données enregistrées avec succès !')
         return
       }
 
@@ -386,14 +404,12 @@ export default function App() {
         } else {
           details = await res.text()
         }
-      } catch {
-        // ignore parse errors
-      }
+      } catch { /* ignore parse errors */ }
 
       console.error('Save failed:', { status: res.status, statusText: res.statusText, details })
-      alert(`❌ Erreur lors de l'enregistrement. (${res.status} ${res.statusText})${details ? `\n${details}` : ''}`)
+      showSaveToast('error', `Erreur lors de l'enregistrement (${res.status} ${res.statusText})${details ? `\n${details}` : ''}`)
     } catch {
-      alert('❌ Erreur de réseau.')
+      showSaveToast('error', 'Erreur réseau — vérifiez votre connexion au serveur.')
     }
   }
 
@@ -424,11 +440,15 @@ export default function App() {
             <button
               className={'topnav-item' + (TOURNEE_TABS.includes(activeTab) ? ' topnav-item--active' : '')}
               onClick={() => {
+                const alreadyOnTournee = TOURNEE_TABS.includes(activeTab)
+                if (!alreadyOnTournee && !showTourneeMenu) {
+                  setActiveTab('AZIZA')
+                }
                 setShowTourneeMenu(!showTourneeMenu)
                 setShowParametrageMenu(false)
               }}
             >
-              🚚 TOURNÉES
+              🚚 TOURNÉES ▾
             </button>
             {showTourneeMenu && (
               <div style={{ position: 'absolute', top: '110%', left: 0, backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '8px', minWidth: '160px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -449,11 +469,15 @@ export default function App() {
               <button
                 className={'topnav-item' + (PARAMETRAGE_TABS.includes(activeTab) ? ' topnav-item--active' : '')}
                 onClick={() => {
+                  const alreadyOnParam = PARAMETRAGE_TABS.includes(activeTab)
+                  if (!alreadyOnParam && !showParametrageMenu) {
+                    setActiveTab('PARAMETRAGE_AJOUTER_POIS')
+                  }
                   setShowParametrageMenu(!showParametrageMenu)
                   setShowTourneeMenu(false)
                 }}
               >
-                🎛️ PARAMÉTRAGE
+                🎛️ PARAMÉTRAGE ▾
               </button>
               {showParametrageMenu && (
                 <div
@@ -507,42 +531,102 @@ export default function App() {
           )}
 
           {[
-            { tab: 'DASHBOARD',     label: '📊 DASHBOARD' },
-            { tab: 'CONFRONTATION', label: '⚖️ CONFRONTATION' },
-            { tab: 'SIMULATEUR',    label: '💰 SIMULATEUR' },
-            { tab: 'OPTIMISATION',  label: '📈 OPTIMISATION' },
+            { tab: 'DASHBOARD', label: '📊 DASHBOARD' },
+            { tab: 'SIMULATEUR', label: '💰 SIMULATEUR' },
+            { tab: 'OPTIMISATION', label: '📈 OPTIMISATION' },
+            { tab: 'AI_DASHBOARD', label: '🤖 IA' },
           ]
-            .filter(({ tab }) => (tab === 'ROUTE_OPT' ? canAccess('TOURNEES') : canAccess(tab)))
+            .filter(({ tab }) => (tab === 'AI_DASHBOARD' ? true : tab === 'ROUTE_OPT' ? canAccess('TOURNEES') : canAccess(tab)))
             .map(({ tab, label }) => (
-            <button key={tab}
-              className={'topnav-item' + (activeTab === tab ? ' topnav-item--active' : '')}
-              onClick={() => setActiveTab(tab)}
-            >{label}</button>
-          ))}
+              <button key={tab}
+                className={'topnav-item' + (activeTab === tab ? ' topnav-item--active' : '')}
+                onClick={() => setActiveTab(tab)}
+              >{label}</button>
+            ))}
 
           {canAccess('ADMIN') && (
-            <button
-              className={'topnav-item' + (activeTab === 'ADMIN' ? ' topnav-item--active' : '')}
-              onClick={() => setActiveTab('ADMIN')}
-            >⚙️ ADMIN</button>
-          )}
+            <div ref={adminMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                className={'topnav-item' + ((activeTab === 'ADMIN' || activeTab === SUPER_ADMIN_TAB) ? ' topnav-item--active' : '')}
+                onClick={() => setShowAdminMenu((v) => !v)}
+              >⚙️ ADMIN ▾</button>
 
-          {canAccess(SUPER_ADMIN_TAB) && (
-            <button
-              className={'topnav-item' + (activeTab === SUPER_ADMIN_TAB ? ' topnav-item--active' : '')}
-              onClick={() => setActiveTab(SUPER_ADMIN_TAB)}
-            >👑 SUPER ADMIN</button>
+              {showAdminMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '4px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                    zIndex: 1000,
+                    minWidth: '260px',
+                    padding: '6px',
+                  }}
+                >
+                  <button
+                    className="topnav-item"
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      borderRadius: '6px',
+                      backgroundColor: activeTab === 'ADMIN' ? '#fff7ed' : 'transparent',
+                      color: activeTab === 'ADMIN' ? '#c2410c' : '#374151',
+                    }}
+                    onClick={() => {
+                      setActiveTab('ADMIN')
+                      setShowAdminMenu(false)
+                    }}
+                  >
+                    👥 Gestion utilisateurs
+                  </button>
+
+                  {canAccess(SUPER_ADMIN_TAB) && (
+                    <button
+                      className="topnav-item"
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        borderRadius: '6px',
+                        backgroundColor: activeTab === SUPER_ADMIN_TAB ? '#fff7ed' : 'transparent',
+                        color: activeTab === SUPER_ADMIN_TAB ? '#c2410c' : '#374151',
+                      }}
+                      onClick={() => {
+                        setActiveTab(SUPER_ADMIN_TAB)
+                        setShowAdminMenu(false)
+                      }}
+                    >
+                      👑 Section super admin
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </nav>
 
         <div className="topbar-right" style={{ display: 'flex', alignItems: 'center' }}>
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             style={{ background: theme === 'dark' ? '#2a2e35' : '#f1f5f9', border: `1px solid ${theme === 'dark' ? '#4b5563' : '#e2e8f0'}`, color: theme === 'dark' ? '#e2e8f0' : '#4b5563', padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', marginRight: '12px' }}
           >
             {theme === 'dark' ? '🌤️ Clair' : '🌙 Sombre'}
           </button>
-          <button className="btn-logout" onClick={() => { setIsLoggedIn(false); setAllowedPages(['TOURNEES', 'DASHBOARD']); setUserRole(null); setUserDisplayName('') }} style={{ marginLeft: '4px', backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fecaca', fontSize: '11px', padding: '6px 12px', cursor: 'pointer' }}>
+          {isLoggedIn && userZone && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'linear-gradient(135deg, #f97316, #ea580c)',
+              color: '#fff', padding: '5px 12px', borderRadius: '20px',
+              fontSize: '12px', fontWeight: '800', marginRight: '8px',
+              boxShadow: '0 2px 8px rgba(249,115,22,0.35)',
+              letterSpacing: '0.5px',
+            }}>
+              📍 {userZone}
+            </div>
+          )}
+          <button className="btn-logout" onClick={() => { setIsLoggedIn(false); setAllowedPages(['TOURNEES', 'DASHBOARD']); setUserRole(null); setUserDisplayName(''); setUserZone(null) }} style={{ marginLeft: '4px', backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fecaca', fontSize: '11px', padding: '6px 12px', cursor: 'pointer' }}>
             QUITTER
           </button>
         </div>
@@ -557,27 +641,28 @@ export default function App() {
             const role = user?.role ?? 'user'
             const pages = Array.isArray(user?.allowedPages) && user.allowedPages.length
               ? user.allowedPages
-              : ['TOURNEES', 'DASHBOARD', 'PARAMETRAGE', 'OPTIMISATION']
+              : role === 'responsable'
+                ? ['DASHBOARD']
+                : ['TOURNEES', 'DASHBOARD', 'PARAMETRAGE', 'OPTIMISATION']
             setUserRole(role)
             setUserDisplayName(String(user?.name || user?.email || '').trim())
+            setUserZone(user?.zone ?? null)
             setAllowedPages(pages)
             setIsLoggedIn(true)
             setActiveTab(
               pages.includes(SUPER_ADMIN_TAB)
                 ? SUPER_ADMIN_TAB
                 : pages.includes('TOURNEES')
-                ? 'AZIZA'
-                : pages.includes('DASHBOARD')
-                  ? 'DASHBOARD'
-                  : pages.includes('CONFRONTATION')
-                      ? 'CONFRONTATION'
-                      : pages.includes('SIMULATEUR')
-                        ? 'SIMULATEUR'
+                  ? 'AZIZA'
+                  : pages.includes('DASHBOARD')
+                    ? 'DASHBOARD'
+                    : pages.includes('SIMULATEUR')
+                      ? 'SIMULATEUR'
                         : pages.includes('PARAMETRAGE')
                           ? 'PARAMETRAGE_AJOUTER_POIS'
                           : pages.includes('OPTIMISATION')
                             ? 'OPTIMISATION'
-                            : role === 'admin' || pages.includes('ADMIN')
+                            : role === 'admin' || role === 'super_admin' || pages.includes('ADMIN')
                               ? 'ADMIN'
                               : 'DASHBOARD',
             )
@@ -639,7 +724,6 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'CONFRONTATION' && canAccess('CONFRONTATION') && <ConfrontationPage alerts={alerts} refetchAlerts={refetchAlerts} />}
           {activeTab === 'SIMULATEUR' && canAccess('SIMULATEUR') && <SimulateurPage />}
           {PARAMETRAGE_TABS.includes(activeTab) && canAccess('PARAMETRAGE') && (
             <ParametragePage
@@ -650,18 +734,48 @@ export default function App() {
                   ? 'camion'
                   : activeTab === 'PARAMETRAGE_DEPOTS'
                     ? 'depots'
-                  : activeTab === 'PARAMETRAGE_TARIF'
-                    ? 'tarif'
-                    : 'ajouter_pois'
+                    : activeTab === 'PARAMETRAGE_TARIF'
+                      ? 'tarif'
+                      : 'ajouter_pois'
               }
             />
           )}
           {activeTab === 'OPTIMISATION' && canAccess('OPTIMISATION') && <OptimisationPage theme={theme} />}
+          {activeTab === 'AI_DASHBOARD' && <AiDashboardPage theme={theme} />}
           {activeTab === 'ADMIN' && canAccess('ADMIN') && <AdminPage />}
           {activeTab === SUPER_ADMIN_TAB && canAccess(SUPER_ADMIN_TAB) && (
             <SuperAdminTripsPage theme={theme} userDisplayName={userDisplayName} />
           )}
         </main>
+      )}
+
+      {/* ── AI Chatbot (always visible when logged in) ───────────────────── */}
+      {isLoggedIn && <AiChatbot />}
+
+      {/* ── Global Save Toast ─────────────────────────────────────────────── */}
+      {saveToast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 99999,
+          maxWidth: 400, minWidth: 280,
+          background: saveToast.type === 'success' ? '#f0fdf4' : '#fef2f2',
+          border: `2px solid ${saveToast.type === 'success' ? '#22c55e' : '#ef4444'}`,
+          borderRadius: 14, padding: '14px 18px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          animation: 'toastIn .25s ease',
+        }}>
+          <style>{`@keyframes toastIn{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}`}</style>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>{saveToast.type === 'success' ? '✅' : '🚫'}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 12, color: saveToast.type === 'success' ? '#15803d' : '#dc2626', marginBottom: 3 }}>
+                {saveToast.type === 'success' ? 'Enregistrement réussi' : 'Erreur lors de l\'enregistrement'}
+              </div>
+              <div style={{ fontSize: 12, color: '#374151', whiteSpace: 'pre-line', lineHeight: 1.5 }}>{saveToast.msg}</div>
+            </div>
+            <button onClick={() => setSaveToast(null)}
+              style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#9ca3af' }}>✕</button>
+          </div>
+        </div>
       )}
     </div>
   )

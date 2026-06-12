@@ -19,6 +19,7 @@ let AppUser = class AppUser {
     matricule;
     allowedPages;
     passwordHash;
+    zone;
     createdAt;
 };
 exports.AppUser = AppUser;
@@ -50,6 +51,10 @@ __decorate([
     (0, typeorm_1.Column)({ name: 'password_hash', type: 'varchar', length: 255 }),
     __metadata("design:type", String)
 ], AppUser.prototype, "passwordHash", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], AppUser.prototype, "zone", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamp', precision: 3 }),
     __metadata("design:type", Date)

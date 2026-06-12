@@ -21,6 +21,8 @@ export type CreateUserDto = {
   role: string;
   matricule?: string;
   allowedPages?: string[];
+  /** Code dépôt (ex: BAR, TUN). Null = pas de restriction de zone. */
+  zone?: string | null;
 };
 
 @Injectable()
@@ -30,7 +32,6 @@ export class UsersService {
     'TOURNEES',
     'DASHBOARD',
     'GPS',
-    'CONFRONTATION',
     'SIMULATEUR',
     'PARAMETRAGE',
     'OPTIMISATION',
@@ -43,7 +44,14 @@ export class UsersService {
     private readonly userRepo: Repository<AppUser>,
     private readonly mail: MailService,
     private readonly activity: ActivityLogService,
-  ) {}
+  ) { }
+
+  private normalizeRole(rawRole: string | null | undefined): 'admin' | 'responsable' | 'user' {
+    const role = String(rawRole ?? '').trim().toLowerCase();
+    if (role === 'admin' || role === 'super_admin') return 'admin';
+    if (role === 'responsable') return 'responsable';
+    return 'user';
+  }
 
   private isMissingAppUsersTable(err: unknown): boolean {
     return (err as { code?: string })?.code === 'ER_NO_SUCH_TABLE';
@@ -54,6 +62,9 @@ export class UsersService {
   }
 
   private normalizeAllowedPages(pages: string[] | undefined, role: string): string[] {
+    const normalizedRole = this.normalizeRole(role);
+    const isAdmin = normalizedRole === 'admin';
+    const isResponsible = normalizedRole === 'responsable';
     const input = Array.isArray(pages) ? pages : [];
     const clean = Array.from(
       new Set(
@@ -62,11 +73,20 @@ export class UsersService {
           .filter((p) => this.ALL_PAGES.includes(p as (typeof this.ALL_PAGES)[number])),
       ),
     );
-    const fallback = role === 'super_admin' ? [...this.ALL_PAGES] : ['TOURNEES', 'DASHBOARD'];
+    const fallback = isAdmin
+      ? ['TOURNEES', 'DASHBOARD', 'ADMIN']
+      : isResponsible
+        ? ['DASHBOARD']
+        : ['TOURNEES', 'DASHBOARD'];
     const base = clean.length > 0 ? clean : fallback;
 
-    if (role === 'super_admin') {
+    if (isAdmin) {
       return base;
+    }
+
+    if (isResponsible) {
+      const filtered = base.filter((p) => p !== 'ADMIN' && p !== 'SUPER_ADMIN_TRIPS' && p !== 'SIMULATEUR' && p !== 'PARAMETRAGE' && p !== 'OPTIMISATION' && p !== 'TOURNEES');
+      return filtered.length > 0 ? filtered : ['DASHBOARD'];
     }
 
     return base.filter((p) => p !== 'ADMIN' && p !== 'SUPER_ADMIN_TRIPS');
@@ -77,13 +97,18 @@ export class UsersService {
   }
 
   private decodeAllowedPages(raw: string | null | undefined, role: string): string[] {
+    const normalizedRole = this.normalizeRole(role);
     const parsed = raw
       ? raw
-          .split(',')
-          .map((p) => p.trim().toUpperCase())
-          .filter(Boolean)
+        .split(',')
+        .map((p) => p.trim().toUpperCase())
+        .filter(Boolean)
       : [];
-    return this.normalizeAllowedPages(parsed, role);
+    if (!raw && role === 'super_admin') {
+      // Backward compatibility for legacy rows that used super_admin role without explicit page list.
+      return [...this.ALL_PAGES];
+    }
+    return this.normalizeAllowedPages(parsed, normalizedRole);
   }
 
   async findAll() {
@@ -94,8 +119,9 @@ export class UsersService {
           id: u.id,
           name: u.name,
           email: u.email,
-          role: u.role,
+          role: this.normalizeRole(u.role),
           matricule: u.matricule ?? null,
+          zone: u.zone ?? null,
           allowedPages: this.decodeAllowedPages(u.allowedPages, u.role),
           created_at: u.createdAt.toISOString(),
         })),
@@ -109,10 +135,11 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, ctx?: { ip?: string | null }) {
-    const name      = dto.name?.trim();
-    const email     = dto.email?.trim().toLowerCase();
-    const role      = dto.role === 'admin' || dto.role === 'super_admin' ? dto.role : 'user';
+    const name = dto.name?.trim();
+    const email = dto.email?.trim().toLowerCase();
+    const role = this.normalizeRole(dto.role);
     const matricule = dto.matricule?.trim() || null;
+    const zone = dto.zone?.trim().toUpperCase() || null;
     const allowedPages = this.normalizeAllowedPages(dto.allowedPages, role);
 
     if (!name || !email) {
@@ -142,13 +169,14 @@ export class UsersService {
     }
 
     const plainPassword = randomBytes(10).toString('base64url').slice(0, 14);
-    const passwordHash  = await bcrypt.hash(plainPassword, 10);
+    const passwordHash = await bcrypt.hash(plainPassword, 10);
 
     const user = this.userRepo.create({
       name,
       email,
       role,
       matricule,
+      zone,
       allowedPages: this.encodeAllowedPages(allowedPages),
       passwordHash,
     });
@@ -165,8 +193,9 @@ export class UsersService {
       `Bonjour ${name},`,
       '',
       `Votre compte R.Tournee a ete cree.`,
-      `Role : ${role === 'super_admin' ? 'super admin' : role === 'admin' ? 'Administrateur' : 'Utilisateur'}`,
+      `Role : ${role === 'admin' ? 'Administrateur' : role === 'responsable' ? 'Responsable' : 'Utilisateur'}`,
       ...(matricule ? [`Matricule : ${matricule}`] : []),
+      ...(zone ? [`Zone / Depot   : ${zone}`] : []),
       `Pages autorisees        : ${allowedPages.join(', ')}`,
       '',
       `Email de connexion      : ${email}`,
@@ -183,18 +212,19 @@ export class UsersService {
         text: emailLines.join('\n'),
       });
     } catch (e) {
-      await this.userRepo.delete({ id: user.id });
-      this.logger.error('Failed to send welcome email; user rolled back', e);
-      throw new BadRequestException(
-        "L'email n'a pas pu etre envoye. Verifiez la configuration SMTP.",
-      );
+      this.logger.error('Failed to send welcome email; user kept in database', e);
+      return {
+        message:
+          "Utilisateur cree, mais l'email n'a pas pu etre envoye. Verifiez la configuration SMTP.",
+        userId: user.id,
+      };
     }
 
     await this.activity.log({
       action: 'USER_CREATE',
       targetType: 'user',
       targetId: String(user.id),
-      details: { email, role, allowedPages, matricule },
+      details: { email, role, allowedPages, matricule, zone },
       ip: ctx?.ip ?? null,
     });
 
@@ -206,7 +236,7 @@ export class UsersService {
    * even before any DB user is created.
    */
   private readonly BUILTIN: Record<string, { password: string; role: string }> = {
-    'lumiere.logistique@gmail.com': { password: 'admin123', role: 'super_admin' },
+    'ghardadounadhir306@gmail.com': { password: 'admin123', role: 'admin' },
   };
 
   async login(email: string, password: string, ctx?: { ip?: string | null }) {
@@ -247,11 +277,13 @@ export class UsersService {
         actorUserId: dbUser.id,
         ip: ctx?.ip ?? null,
       });
+      const role = this.normalizeRole(dbUser.role);
       return {
-        role: dbUser.role,
+        role,
         name: dbUser.name,
         email: dbUser.email,
         matricule: dbUser.matricule ?? null,
+        zone: dbUser.zone ?? null,
         allowedPages: this.decodeAllowedPages(dbUser.allowedPages, dbUser.role),
       };
     }
@@ -266,11 +298,11 @@ export class UsersService {
         ip: ctx?.ip ?? null,
       });
       return {
-        role: builtin.role,
-        name: 'super admin',
+        role: this.normalizeRole(builtin.role),
+        name: 'admin',
         email: lowerEmail,
         matricule: null,
-        allowedPages: this.normalizeAllowedPages([...this.ALL_PAGES], 'super_admin'),
+        allowedPages: this.normalizeAllowedPages([...this.ALL_PAGES], 'admin'),
       };
     }
 

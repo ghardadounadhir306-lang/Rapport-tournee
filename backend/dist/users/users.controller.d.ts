@@ -8,8 +8,9 @@ export declare class UsersController {
             id: number;
             name: string;
             email: string;
-            role: string;
+            role: "admin" | "responsable" | "user";
             matricule: string | null;
+            zone: string | null;
             allowedPages: string[];
             created_at: string;
         }[];
@@ -18,11 +19,19 @@ export declare class UsersController {
         email?: string;
         password?: string;
     }, req: Request): Promise<{
-        role: string;
+        role: "admin" | "responsable" | "user";
         name: string;
         email: string;
         matricule: string | null;
+        zone: string | null;
         allowedPages: string[];
+    } | {
+        role: "admin" | "responsable" | "user";
+        name: string;
+        email: string;
+        matricule: null;
+        allowedPages: string[];
+        zone?: undefined;
     }>;
     create(body: {
         name?: string;
@@ -30,10 +39,12 @@ export declare class UsersController {
         role?: string;
         matricule?: string;
         allowedPages?: string[];
+        zone?: string | null;
     }, req: Request): Promise<{
         message: string;
-    }>;
-    remove(id: number, req: Request): Promise<{
+        userId: number;
+    } | {
         message: string;
+        userId?: undefined;
     }>;
 }

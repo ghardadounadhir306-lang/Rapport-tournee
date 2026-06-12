@@ -17,6 +17,8 @@ import { BaseCamionModule } from './base-camion/base-camion.module';
 import { BaseTarifModule } from './base-tarif/base-tarif.module';
 import { BaseChauffeurModule } from './base-chauffeur/base-chauffeur.module';
 import { TarifModule } from './modules/tarif/tarif.module';
+import { AiModule } from './ai/ai.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { TarifModule } from './modules/tarif/tarif.module';
     GpsModule,
     AlertsModule,
     TransportDataModule,
+    AiModule,
+    DashboardModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

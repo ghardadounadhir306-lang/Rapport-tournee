@@ -1,0 +1,77 @@
+@startuml Diagramme MVC - R.Tournée
+
+title Diagramme MVC - Plateforme Logistique R.Tournée
+
+left to right direction
+
+skinparam backgroundColor #FFFFFF
+skinparam component {
+    BackgroundColor #4472C4
+    FontColor #FFFFFF
+    FontStyle bold
+    FontSize 13
+    BorderColor #2B579A
+    RoundCorner 15
+}
+skinparam package {
+    BackgroundColor #F0F4FA
+    BorderColor #4472C4
+    FontColor #1B3A5C
+    FontStyle bold
+    FontSize 14
+}
+
+' ========== VUE (Frontend React) ==========
+package "Vue (Frontend React / Vite)" as view {
+    component [LoginScreen] as login
+    component [TourneePage] as tournee
+    component [DashboardPage] as dashboard
+    component [SimulateurPage] as simulateur
+    component [ParametragePage] as parametrage
+    component [OptimisationPage] as optimisation
+    component [AdminPage] as admin
+    component [AiDashboardPage] as aidashboard
+}
+
+' ========== CONTROLEUR (Backend NestJS) ==========
+package "Contrôleur (Backend NestJS)" as controller {
+    component [TmsController] as tmsCtrl #ED7D31
+    component [TransportDataController] as transportCtrl #ED7D31
+    component [DashboardController] as dashCtrl #ED7D31
+    component [ClientsPoiController] as poiCtrl #ED7D31
+    component [BaseCamionController] as camionCtrl #ED7D31
+    component [BaseTarifController] as tarifCtrl #ED7D31
+    component [UsersController] as usersCtrl #ED7D31
+    component [AiController] as aiCtrl #ED7D31
+}
+
+' ========== MODELE (Services + Entités + BDD) ==========
+package "Modèle (Services + TypeORM)" as model {
+    component [TmsService] as tmsSvc #70AD47
+    component [TransportDataService] as transportSvc #70AD47
+    component [DashboardService] as dashSvc #70AD47
+    component [ClientsPoiService] as poiSvc #70AD47
+    component [BaseCamionService] as camionSvc #70AD47
+    component [BaseTarifService] as tarifSvc #70AD47
+    component [UsersService] as usersSvc #70AD47
+    component [AiService] as aiSvc #70AD47
+}
+
+' ========== BASE DE DONNEES ==========
+database "PostgreSQL 16\nr_tournee" as db
+
+' ========== Relations ==========
+view --> controller : "HTTP REST\nAxios / Fetch"
+
+tmsCtrl --> tmsSvc
+transportCtrl --> transportSvc
+dashCtrl --> dashSvc
+poiCtrl --> poiSvc
+camionCtrl --> camionSvc
+tarifCtrl --> tarifSvc
+usersCtrl --> usersSvc
+aiCtrl --> aiSvc
+
+model --> db : "TypeORM\nTCP :5432"
+
+@enduml

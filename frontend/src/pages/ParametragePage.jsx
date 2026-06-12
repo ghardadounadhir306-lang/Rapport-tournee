@@ -28,13 +28,13 @@ export default function ParametragePage({ theme, section = 'ajouter_pois', userD
         boxSizing: 'border-box',
       }}
     >
-      <div className="card" style={{ marginBottom: 16, padding: '20px 22px' }}>
+      <div className="card" style={{ marginBottom: 16, padding: '20px 22px', borderTop: '4px solid #f97316' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ fontSize: '30px', backgroundColor: '#fff7ed', padding: '10px', borderRadius: '12px' }}>🎛️</div>
+          <div style={{ fontSize: '30px', background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', padding: '12px', borderRadius: '14px', boxShadow: '0 4px 14px rgba(249,115,22,0.12)' }}>🏛️</div>
           <div>
-            <h2 className="title-orange" style={{ margin: 0 }}>PARAMÉTRAGE</h2>
+            <h2 className="title-orange" style={{ margin: 0, letterSpacing: '-0.01em' }}>PARAMÉTRAGE</h2>
             <p style={{ margin: '4px 0 0', fontWeight: 800, fontSize: '14px', color: '#f97316' }}>{head.title}</p>
-            <p style={{ margin: '6px 0 0', color: dk('#94a3b8', '#64748b'), fontSize: '13px' }}>{head.blurb}</p>
+            <p style={{ margin: '6px 0 0', color: dk('#94a3b8', '#64748b'), fontSize: '13px', fontWeight: 500 }}>{head.blurb}</p>
           </div>
         </div>
       </div>
